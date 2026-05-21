@@ -99,6 +99,8 @@ return [
     'user_update_notification' => '用户更新成功',
     'user_delete' => '用户已删除',
     'user_delete_notification' => '成功移除用户',
+    'user_mfa_reset' => 'reset MFA for user',
+    'user_mfa_reset_notification' => 'Multi-factor authentication methods reset',
 
     // API Tokens
     'api_token_create' => '已创建 API 令牌',

@@ -39,7 +39,7 @@ return [
     'register_success' => 'Vielen Dank für Ihre Registrierung! Die Daten sind gespeichert und Sie sind angemeldet.',
 
     // Login auto-initiation
-    'auto_init_starting' => 'Anmeldeversuche',
+    'auto_init_starting' => 'Anmeldeversuch',
     'auto_init_starting_desc' => 'Wir verbinden uns mit Ihrem Authentifizierungssystem, um den Anmeldeprozess zu starten. Sollte es nach 5 Sekunden nicht weitergehen, klicken Sie bitte auf den unten stehenden Link.',
     'auto_init_start_link' => 'Mit Authentifizierung fortfahren',
 

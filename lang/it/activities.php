@@ -99,6 +99,8 @@ return [
     'user_update_notification' => 'Utente aggiornato con successo',
     'user_delete' => 'ha eliminato un utente',
     'user_delete_notification' => 'Utente rimosso con successo',
+    'user_mfa_reset' => 'reset MFA for user',
+    'user_mfa_reset_notification' => 'Multi-factor authentication methods reset',
 
     // API Tokens
     'api_token_create' => 'ha creato un token API',

@@ -264,6 +264,9 @@ return [
     'users_mfa_desc' => 'Двофакторна аутентифікація додає ще один рівень безпеки для вашого облікового запису.',
     'users_mfa_x_methods' => ':count метод налаштовано|:count методів налаштовано',
     'users_mfa_configure' => 'Налаштувати Методи',
+    'users_mfa_reset' => 'Reset Multi-Factor Authentication Methods',
+    'users_mfa_reset_desc' => 'This will reset and clear all configured multi-factor authentication methods for this user. If multi-factor authentication is required by any of their roles, they\'ll be prompted to configure new methods on their next login.',
+    'users_mfa_reset_confirm' => 'Are you sure you want to reset multi-factor authentication for this user?',
 
     // API Tokens
     'user_api_token_create' => 'Створити токен API',
@@ -364,6 +367,7 @@ return [
         'sk' => 'Slovensky',
         'sl' => 'Slovenščina',
         'sv' => 'Svenska',
+        'th' => 'ภาษาไทย',
         'tr' => 'Türkçe',
         'uk' => 'Українська',
         'uz' => 'O‘zbekcha',
