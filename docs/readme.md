@@ -24,7 +24,7 @@ Start Here
   Source of Truth
 Residential
 Commercial
-Products
+Vendors
 Specs & Drawings
 Warranty / Compliance
 Reference / FAQs
@@ -41,8 +41,8 @@ Top-level purpose of each area:
   - Residential versions of the core service families
 - `Commercial`
   - Commercial versions of the core service families
-- `Products`
-  - Manufacturer and brand-level reference pages
+- `Vendors`
+  - Manufacturer and vendor-level reference pages
 - `Specs & Drawings`
   - Organized document library for technical files
 - `Warranty / Compliance`
@@ -112,7 +112,7 @@ Suggested book structure
   - Glazing references
   - Door and storefront references
 
-### Products
+### Vendors
 
 - 3M
 - Hunter Douglas
@@ -125,7 +125,7 @@ Suggested book structure
 - CRL
 - Dallas Flat Glass
 - Ghost Glass
-- Jeld-Wen
+- JELD-WEN
 - Other vendor / manufacturer pages as needed
 
 ### Specs & Drawings
@@ -227,6 +227,7 @@ Production hosting and operations are handled separately from this local draft. 
 For structure questions, content requests, or maintenance help, contact John Borg.
 
 For the canonical source map used to update the docs in one pass, see [docs/source.md](source.md).
+For the vendor product inventory that powers the brand pages, see [docs/products.md](products.md).
 
 For the current navigation map and page organization model, see [docs/navigation.md](navigation.md).
 
@@ -234,4 +235,4 @@ BookStack references
 --------------------
 
 - Official docs: https://www.bookstackapp.com/docs/
-- Project source: https://github.com/BookStackApp/BookStack
+- Project source: https://codeberg.org/bookstack/bookstack

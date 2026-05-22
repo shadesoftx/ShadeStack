@@ -41,8 +41,7 @@ class ShadesOfTexasStructureSeeder extends Seeder
         $createdChapters = [];
         $createdPages = [];
         $createdProductPages = [];
-        $resourcePages = [];
-        $resourcePageCounters = [];
+        $createdVendorProductPages = [];
         $servicePageCounters = [];
         $startHerePriority = 0;
 
@@ -61,23 +60,80 @@ class ShadesOfTexasStructureSeeder extends Seeder
                 $pageName,
                 $pageConfig['summary'],
                 $byData,
-                $this->buildStartHerePageHtml($pageName, $pageConfig['summary']),
+                $this->buildStartHerePageHtml($pageName, $pageConfig['summary'], $createdBooks),
                 $startHerePageCounters
             );
         }
 
         $productPageCounters = 0;
         $brandProfiles = $this->brandProfiles();
-        foreach (($this->bookConfigs()['Products']['chapters'] ?? []) as $brandName => $brandConfig) {
+        $vendorProductInventory = $this->parsedProductMarkdownBrands();
+        foreach (($this->bookConfigs()['Vendors']['chapters'] ?? []) as $brandName => $brandConfig) {
+            $brandChapter = $this->createChapter($createdBooks['Vendors'], $brandName, $brandConfig['description'], $byData);
+            $createdChapters['Vendors'][$brandName] = $brandChapter;
+
+            $vendorProductPages = [];
+            $inventoryProducts = $vendorProductInventory[$brandName] ?? ($brandProfiles[$brandName]['products'] ?? []);
+            $vendorProductPagePriority = 1;
+
+            foreach ($inventoryProducts as $product) {
+                $productName = $product['name'];
+                $vendorProductPagePriority++;
+                $vendorProductPages[$productName] = $this->createPage(
+                    $createdBooks['Vendors'],
+                    $brandChapter,
+                    $productName,
+                    $product['summary'] ?? '',
+                    $byData,
+                    $this->buildVendorProductPageHtml(
+                        $brandName,
+                        $productName,
+                        $product['summary'] ?? '',
+                        $product['url'] ?? null,
+                        $inventoryProducts,
+                        $brandProfiles[$brandName] ?? []
+                    ),
+                    $vendorProductPagePriority
+                );
+            }
+
+            $createdVendorProductPages[$brandName] = $vendorProductPages;
             $createdProductPages[$brandName] = $this->createPage(
-                $createdBooks['Products'],
-                null,
+                $createdBooks['Vendors'],
+                $brandChapter,
                 $brandName,
                 $brandConfig['description'],
                 $byData,
-                $this->buildBrandPageHtml($brandName, $brandName, $brandConfig['description'], $brandProfiles[$brandName] ?? []),
-                ++$productPageCounters
+                $this->buildBrandPageHtml(
+                    $brandName,
+                    $brandName,
+                    $brandConfig['description'],
+                    $brandProfiles[$brandName] ?? [],
+                    $vendorProductPages
+                ),
+                1
             );
+
+            foreach ($vendorProductPages as $productName => $vendorProductPage) {
+                $productData = collect($vendorProductInventory[$brandName] ?? [])->firstWhere('name', $productName) ?? [];
+                $productSummary = $productData['summary'] ?? ($vendorProductPage->name ?? '');
+                $productUrl = $productData['url'] ?? null;
+                $finalHtml = $this->buildVendorProductPageHtml(
+                    $brandName,
+                    $productName,
+                    $productSummary,
+                    $productUrl,
+                    $vendorProductInventory[$brandName] ?? [],
+                    $brandProfiles[$brandName] ?? [],
+                    $vendorProductPages
+                );
+
+                $vendorProductPage->forceFill([
+                    'html' => $finalHtml,
+                    'text' => strip_tags($finalHtml),
+                ])->save();
+                $vendorProductPage->refresh();
+            }
         }
 
         $serviceCatalog = $this->serviceCatalog();
@@ -87,34 +143,6 @@ class ShadesOfTexasStructureSeeder extends Seeder
             foreach ($serviceConfig['chapters'] as $chapterName => $chapterConfig) {
                 $chapter = $this->createChapter($book, $chapterName, $chapterConfig['description'], $byData);
                 $createdChapters[$serviceName][$chapterName] = $chapter;
-            }
-        }
-
-        foreach ($serviceCatalog as $serviceName => $serviceConfig) {
-            foreach ($serviceConfig['chapters'] as $chapterName => $chapterConfig) {
-                foreach ($chapterConfig['pages'] as $pageConfig) {
-                    $pageName = $pageConfig['name'];
-                    foreach ($this->resourceBooks() as $resourceBookName => $resourceBookConfig) {
-                        $resourcePageCounters[$resourceBookName] = ($resourcePageCounters[$resourceBookName] ?? 0) + 1;
-                        $resourcePages[$resourceBookName][$serviceName][$chapterName][$pageName] = $this->createPage(
-                            $createdBooks[$resourceBookName],
-                            null,
-                            $this->resourcePageTitle($chapterName, $pageName),
-                            $pageConfig['summary'],
-                            $byData,
-                            $this->buildResourcePageHtml(
-                                $resourceBookName,
-                                $serviceName,
-                                $chapterName,
-                                $pageName,
-                                $pageConfig['summary'],
-                                $pageConfig['products'] ?? [],
-                                $createdProductPages
-                            ),
-                            $resourcePageCounters[$resourceBookName]
-                        );
-                    }
-                }
             }
         }
 
@@ -134,12 +162,7 @@ class ShadesOfTexasStructureSeeder extends Seeder
                         $pageConfig['summary'],
                         $pageConfig['products'] ?? [],
                         $createdProductPages,
-                        [
-                            'Products' => $resourcePages['Products'][$serviceName][$chapterName][$pageName],
-                            'Specs & Drawings' => $resourcePages['Specs & Drawings'][$serviceName][$chapterName][$pageName],
-                            'Warranty / Compliance' => $resourcePages['Warranty / Compliance'][$serviceName][$chapterName][$pageName],
-                            'Reference / FAQs' => $resourcePages['Reference / FAQs'][$serviceName][$chapterName][$pageName],
-                        ]
+                        $createdBooks['Vendors']
                     );
 
                     $createdPages[$serviceName][$chapterName][$pageName] = $this->createPage(
@@ -587,47 +610,154 @@ HTML;
         <p class="sotx-kicker">Shades of Texas Resource</p>
         <h1>{$name}</h1>
         <p class="sotx-lede">{$summary}</p>
-        <div class="sotx-note" style="margin-top:.8rem;">Populate this page with the approved content for this topic.</div>
     </section>
 </div>
 HTML;
     }
 
-    protected function buildStartHerePageHtml(string $pageName, string $summary): string
+    protected function buildStartHerePageHtml(string $pageName, string $summary, array $books = []): string
     {
         if ($pageName === 'Source of Truth') {
-            return $this->buildSourcePageHtml($summary);
+            return $this->buildSourcePageHtml($summary, $books);
         }
 
-        return $this->buildScaffoldPageHtml(
-            'Start Here',
-            $pageName,
-            $summary,
-            [
+        if ($pageName === 'How to Use This Hub') {
+            $quickLinks = $this->buildStartHereBookLinks($books);
+            $vendorLink = $this->buildBookLinkHtml($books, 'Vendors');
+            $residentialLink = $this->buildBookLinkHtml($books, 'Residential');
+            $commercialLink = $this->buildBookLinkHtml($books, 'Commercial');
+            $sourceLink = $this->buildBookLinkHtml($books, 'Start Here', 'Source of Truth');
+
+            return $this->buildScaffoldPageHtml(
+                'Start Here',
+                $pageName,
+                $summary,
                 [
-                    'title' => 'How This Page Should Work',
-                    'summary' => 'Describe the purpose of this page and what the rep should do with it.',
-                    'points' => [
-                        'Add a plain-English explanation of the page topic.',
-                        'Call out the team member or workflow owner.',
-                        'Link to the next step in the sales process.',
+                    [
+                        'title' => 'Pick the Right Lane',
+                        'summary' => 'Start with the book that matches the kind of answer you need.',
+                        'points' => [
+                            ['html' => $vendorLink . ' is where vendor overviews, product pages, warranty links, FAQ links, and official source links live.'],
+                            ['html' => $residentialLink . ' is where homeowner-facing service categories live: tint and film, window treatments, outdoor living, and glass work.'],
+                            ['html' => $commercialLink . ' is where business-facing service categories live: commercial film, patio systems, glazing, and commercial treatments.'],
+                            ['html' => $sourceLink . ' is the audit trail for official vendor sources when a link or claim needs to be checked.'],
+                        ],
+                    ],
+                    [
+                        'title' => 'Common Lookup Paths',
+                        'summary' => 'Use these paths when you need an answer quickly during sales or support work.',
+                        'points' => [
+                            ['html' => '<strong>Customer asks what we carry:</strong> open ' . $vendorLink . ', pick the vendor, then open the exact product page.'],
+                            ['html' => '<strong>Customer asks about warranty:</strong> open the vendor page and use the <strong>Warranty Information</strong> section before quoting coverage.'],
+                            ['html' => '<strong>Customer asks a practical product question:</strong> open the product page first, then use the vendor <strong>FAQs</strong> section if the product page does not answer it.'],
+                            ['html' => '<strong>You only know the project type:</strong> start in ' . $residentialLink . ' or ' . $commercialLink . ', then use the linked vendor chips on that service page.'],
+                        ],
+                    ],
+                    [
+                        'title' => 'When to Slow Down',
+                        'summary' => 'Some answers need verification before they go to a customer.',
+                        'points' => [
+                            'Do not promise warranty coverage without checking the exact product line, install conditions, and purchase date.',
+                            'Do not use a vendor homepage as proof of warranty terms unless the vendor does not publish a public warranty page and the page says to confirm directly.',
+                            'If a link looks stale, use Source of Truth to find the official vendor path and update the vendor page afterward.',
+                        ],
                     ],
                 ],
+                $quickLinks
+            );
+        }
+
+        if ($pageName === 'Where to Find Product Info and Pricing') {
+            $quickLinks = $this->buildStartHereBookLinks($books);
+            $vendorLink = $this->buildBookLinkHtml($books, 'Vendors');
+            $residentialLink = $this->buildBookLinkHtml($books, 'Residential');
+            $commercialLink = $this->buildBookLinkHtml($books, 'Commercial');
+
+            return $this->buildScaffoldPageHtml(
+                'Start Here',
+                $pageName,
+                $summary,
                 [
-                    'title' => 'Populate This Next',
-                    'summary' => 'Use this space to finish the first draft quickly.',
-                    'points' => [
-                        'Add links to the source documents or source systems.',
-                        'Add any required login or access notes.',
-                        'Add examples, screenshots, or project references.',
+                    [
+                        'title' => 'Where Each Type of Info Lives',
+                        'summary' => 'Keep the product and pricing details in the right place.',
+                        'points' => [
+                            ['html' => '<strong>Product lines:</strong> use ' . $vendorLink . ' and open the product page under the vendor.'],
+                            ['html' => '<strong>Service fit:</strong> use ' . $residentialLink . ' or ' . $commercialLink . ' when you need to know which vendors apply to a project type.'],
+                            ['html' => '<strong>Warranty:</strong> use the vendor page or product page <strong>Warranty Information</strong> section.'],
+                            ['html' => '<strong>FAQs:</strong> use the vendor page or product page <strong>FAQs</strong> section for care, ordering, and common support questions.'],
+                            ['html' => '<strong>Pricing:</strong> use the vendor page <strong>Quick Links</strong>, dealer portal links, or the listed rep/contact path. If a vendor requires login access, do not quote from memory.'],
+                        ],
+                    ],
+                    [
+                        'title' => 'What to Check Before Quoting',
+                        'summary' => 'Use the current sources instead of old attachments or memory.',
+                        'points' => [
+                            'Confirm the exact product name and series.',
+                            'Confirm whether the job is residential or commercial.',
+                            'Confirm warranty coverage before using it as a selling point.',
+                            'Confirm whether pricing is public, dealer-only, or rep-provided.',
+                            'If the vendor page says access is pending or direct confirmation is required, ask for the missing detail before quoting.',
+                        ],
                     ],
                 ],
-            ]
-        );
+                $quickLinks
+            );
+        }
+
+        if ($pageName === 'How to Request Missing Documents') {
+            $quickLinks = $this->buildStartHereBookLinks($books);
+            $vendorLink = $this->buildBookLinkHtml($books, 'Vendors');
+            $residentialLink = $this->buildBookLinkHtml($books, 'Residential');
+            $commercialLink = $this->buildBookLinkHtml($books, 'Commercial');
+            $sourceLink = $this->buildBookLinkHtml($books, 'Start Here', 'Source of Truth');
+
+            return $this->buildScaffoldPageHtml(
+                'Start Here',
+                $pageName,
+                $summary,
+                [
+                    [
+                        'title' => 'What to Include in the Request',
+                        'summary' => 'Give enough detail so someone can find the right file on the first pass.',
+                        'points' => [
+                            'List the vendor, product line, and exact document type.',
+                            'Include the job name or customer context if it matters.',
+                            'Include whether this is for a residential or commercial project.',
+                            'Add the link you already checked, even if it was wrong or incomplete.',
+                            'Say what decision is blocked: pricing, warranty, install detail, product fit, or customer answer.',
+                        ],
+                    ],
+                    [
+                        'title' => 'Where to Check First',
+                        'summary' => 'Most missing-document requests can be narrowed down before asking someone else.',
+                        'points' => [
+                            ['html' => 'Check ' . $vendorLink . ' for vendor-level product, warranty, FAQ, and quick links.'],
+                            ['html' => 'Check ' . $residentialLink . ' or ' . $commercialLink . ' if you only know the service category.'],
+                            ['html' => 'Check ' . $sourceLink . ' if the issue is a bad link, missing vendor source, or conflicting vendor information.'],
+                            'If the source page says rep confirmation is required, collect the rep response and add it back to the vendor page later.',
+                        ],
+                    ],
+                    [
+                        'title' => 'Who to Ask',
+                        'summary' => 'Use the right escalation path for the type of missing information.',
+                        'points' => [
+                            'For vendor access, pricing, samples, or dealer portal issues, ask the assigned vendor rep or account contact.',
+                            'For website structure, navigation, or content placement, contact John Borg.',
+                            'For customer-facing uncertainty, mark the answer as unconfirmed until the vendor source or rep confirms it.',
+                        ],
+                    ],
+                ],
+                $quickLinks
+            );
+        }
+
+        return $this->buildScaffoldPageHtml('Start Here', $pageName, $summary, []);
     }
 
-    protected function buildSourcePageHtml(string $summary): string
+    protected function buildSourcePageHtml(string $summary, array $books = []): string
     {
+        $quickLinks = $this->buildStartHereBookLinks($books);
         $brandPoints = [];
         foreach ($this->sourceRegistry()['brands'] as $brandName => $brandConfig) {
             $links = '';
@@ -653,37 +783,77 @@ HTML;
             $summary,
             [
                 [
-                    'title' => 'How to Use This Page',
-                    'summary' => 'Treat this as the master source map before changing any brand, service, or reference page.',
+                    'title' => 'Read This First',
+                    'summary' => 'Use this page when you need to verify where vendor information came from.',
                     'points' => [
-                        'Update this page first whenever a source changes.',
-                        'Use the listed links to verify product, warranty, and support details.',
-                        'Then update the downstream BookStack docs and the repo markdown docs together.',
+                        'Use the vendor page first during normal sales lookup.',
+                        'Use this page when a vendor link breaks, a customer asks for proof, or two pages disagree.',
+                        'After a source changes, update the vendor page and any affected service pages so the hub stays consistent.',
                     ],
                 ],
                 [
-                    'title' => 'Brand Sources',
-                    'summary' => 'Official vendor sites and support pages used to write the brand pages.',
+                    'title' => 'Verified Vendor Sources',
+                    'summary' => 'Official vendor sites, portals, warranty pages, FAQs, and product references used throughout the hub.',
                     'points' => $brandPoints,
                 ],
                 [
                     'title' => 'Service Source Map',
-                    'summary' => 'Which brands inform each service family and category set.',
+                    'summary' => 'Which vendors support each residential and commercial service area.',
                     'points' => $servicePoints,
                 ],
                 [
-                    'title' => 'Update Order',
-                    'summary' => 'Keep every documentation update in the same order so the hub stays consistent.',
+                    'title' => 'How to Keep This Current',
+                    'summary' => 'Use this order when a vendor source changes or a bad link is found.',
                     'points' => [
-                        'Start with source.md in the repo.',
-                        'Update the BookStack Source of Truth page.',
-                        'Update brand pages in Products.',
-                        'Update service pages in Residential and Commercial.',
-                        'Finish with readme.md and navigation.md.',
+                        'Confirm the replacement link is official and relevant to what Shades of Texas sells.',
+                        'Update the matching vendor page in Vendors.',
+                        'Update product pages under that vendor if the change affects a specific product line.',
+                        'Update Residential or Commercial pages if the change affects how we position a service category.',
+                        'Leave a clear note when the vendor does not publish a public source and direct rep confirmation is required.',
                     ],
                 ],
-            ]
+            ],
+            <<<HTML
+<section class="sotx-section">
+    <div class="sotx-section-head">
+        <div>
+            <h2>Core Books</h2>
+            <p class="sotx-note" style="margin:.35rem 0 0;">Jump straight to the books that matter most during a sales lookup.</p>
+        </div>
+    </div>
+    <div class="sotx-actions" style="margin-top:.55rem;">{$quickLinks}</div>
+</section>
+HTML
         );
+    }
+
+    protected function buildStartHereBookLinks(array $books): string
+    {
+        $links = [];
+        foreach ([
+            'Start Here',
+            'Residential',
+            'Commercial',
+            'Vendors',
+        ] as $bookName) {
+            if (empty($books[$bookName])) {
+                continue;
+            }
+
+            $links[] = '<a href="' . e($books[$bookName]->getUrl()) . '" class="sotx-pill">' . e($bookName) . '</a>';
+        }
+
+        return implode('', $links);
+    }
+
+    protected function buildBookLinkHtml(array $books, string $bookName, ?string $label = null): string
+    {
+        $label ??= $bookName;
+        if (empty($books[$bookName])) {
+            return e($label);
+        }
+
+        return '<a href="' . e($books[$bookName]->getUrl()) . '">' . e($label) . '</a>';
     }
 
     protected function sourceRegistry(): array
@@ -694,8 +864,16 @@ HTML;
                     'summary' => 'Window film and warranty sources.',
                     'links' => [
                         ['label' => 'Building Window Solutions', 'url' => 'https://www.3m.com/3M/en_US/building-window-solutions-us/'],
-                        ['label' => 'Window Films', 'url' => 'https://www.3m.com/3M/en_US/graphics-signage-us/applications/windows-and-glass/window-films/'],
-                        ['label' => 'Warranties', 'url' => 'https://www.3m.com/3M/en_US/post-factory-installation-us/resources/warranties/'],
+                        ['label' => 'Home Window Solutions', 'url' => 'https://www.3m.com/3M/en_US/home-window-solutions-us/'],
+                        ['label' => 'Support / FAQs', 'url' => 'https://www.3m.com/3M/en_US/building-window-solutions-us/support/'],
+                        ['label' => 'Find a Dealer', 'url' => 'https://www.3m.com/3M/en_US/building-window-solutions-us/support/find-a-dealer/'],
+                        ['label' => 'Resources', 'url' => 'https://www.3m.com/3M/en_US/building-window-solutions-us/resources/'],
+                    ],
+                    'warranty_links' => [
+                        ['label' => 'Warranty Information', 'url' => 'https://multimedia.3m.com/mws/media/943121O/3m-window-film-commercial-product-information-form.pdf?fn=Commercial+Product+Information+Form.pdf'],
+                    ],
+                    'faq_links' => [
+                        ['label' => 'FAQs', 'url' => 'https://www.3m.com/3M/en_US/building-window-solutions-us/support/'],
                     ],
                 ],
                 'Hunter Douglas' => [
@@ -703,8 +881,16 @@ HTML;
                     'links' => [
                         ['label' => 'Window Treatments', 'url' => 'https://www.hunterdouglas.com/window-treatments'],
                         ['label' => 'Support Center', 'url' => 'https://help.hunterdouglas.com/hc/en-us'],
+                        ['label' => 'FAQs', 'url' => 'https://help.hunterdouglas.com/hc/en-us/categories/39191091693076-FAQs'],
                         ['label' => 'Warranty FAQs', 'url' => 'https://help.hunterdouglas.com/hc/en-us/sections/39307695386772-Warranty-FAQs'],
                         ['label' => 'Installation', 'url' => 'https://www.hunterdouglas.com/installation?Parts='],
+                    ],
+                    'warranty_links' => [
+                        ['label' => 'Warranty Information', 'url' => 'https://help.hunterdouglas.com/hc/en-us/articles/39534899498516'],
+                    ],
+                    'faq_links' => [
+                        ['label' => 'FAQs', 'url' => 'https://help.hunterdouglas.com/hc/en-us/categories/39191091693076-FAQs'],
+                        ['label' => 'Warranty FAQs', 'url' => 'https://help.hunterdouglas.com/hc/en-us/sections/39307695386772-Warranty-FAQs'],
                     ],
                 ],
                 'Alta' => [
@@ -715,13 +901,26 @@ HTML;
                         ['label' => 'Maintenance & Warranty', 'url' => 'https://prod.altawindowfashions.com/en/maintenance-and-warranty'],
                         ['label' => 'FAQs', 'url' => 'https://www.altawindowfashions.com/faqs'],
                     ],
+                    'warranty_links' => [
+                        ['label' => 'Warranty Information', 'url' => 'https://prod.altawindowfashions.com/en/maintenance-and-warranty'],
+                    ],
+                    'faq_links' => [
+                        ['label' => 'FAQs', 'url' => 'https://www.altawindowfashions.com/faqs'],
+                    ],
                 ],
                 'Norman' => [
                     'summary' => 'Norman product and warranty references.',
                     'links' => [
                         ['label' => 'Home', 'url' => 'https://normanusa.com/'],
                         ['label' => 'Window Treatments', 'url' => 'https://normanusa.com/window-treatments/'],
+                        ['label' => 'FAQs', 'url' => 'https://normanusa.com/window-treatments/beach-house-coastal-window-treatments/'],
                         ['label' => 'Warranties', 'url' => 'https://normanusa.com/warranties/'],
+                    ],
+                    'warranty_links' => [
+                        ['label' => 'Warranty Information', 'url' => 'https://normanusa.com/warranties/'],
+                    ],
+                    'faq_links' => [
+                        ['label' => 'FAQs', 'url' => 'https://normanusa.com/window-treatments/beach-house-coastal-window-treatments/'],
                     ],
                 ],
                 'Eclipse' => [
@@ -729,7 +928,15 @@ HTML;
                     'links' => [
                         ['label' => 'Home', 'url' => 'https://www.eclipseawning.com/'],
                         ['label' => 'Brochure', 'url' => 'https://www.eclipseawning.com/wp-content/uploads/Eclipse-Brochure-v.2.21-for-email.pdf'],
+                        ['label' => 'Questions / Dealer Inquiries', 'url' => 'https://eclipseshading.com/dealers/search/'],
                         ['label' => 'Custom Brands Group', 'url' => 'https://www.custombrandsgroup.com/'],
+                    ],
+                    'warranty_links' => [
+                        ['label' => 'Warranty Information', 'url' => 'https://eclipseshading.com/the-eclipse-shading-systems%C2%AE-warranty/'],
+                        ['label' => 'Warranty PDF', 'url' => 'https://eclipseshading.com/wp-content/uploads/Warranty-Information.pdf'],
+                    ],
+                    'faq_links' => [
+                        ['label' => 'Questions / Dealer Inquiries', 'url' => 'https://eclipseshading.com/dealers/search/'],
                     ],
                 ],
                 'SmartTint' => [
@@ -738,7 +945,15 @@ HTML;
                         ['label' => 'Home', 'url' => 'https://www.smarttint.com/'],
                         ['label' => 'Applications', 'url' => 'https://www.smarttint.com/applications/'],
                         ['label' => 'Why Us', 'url' => 'https://www.smarttint.com/whyus/'],
+                        ['label' => 'FAQs', 'url' => 'https://www.smarttint.com/faq/'],
                         ['label' => 'Technical Data Sheet', 'url' => 'https://www.smarttint.com/wp-content/uploads/2025/03/SmartTint-SmartCling-Technical-Data-Sheet-10th-Gen-v3-1.pdf'],
+                    ],
+                    'warranty_links' => [
+                        ['label' => 'Warranty Information', 'url' => 'https://www.smarttint.com/warranty/'],
+                        ['label' => 'Warranty Claim Form', 'url' => 'https://www.smarttint.com/warranty-claim/'],
+                    ],
+                    'faq_links' => [
+                        ['label' => 'FAQs', 'url' => 'https://www.smarttint.com/faq/'],
                     ],
                 ],
                 'Andersen' => [
@@ -747,7 +962,14 @@ HTML;
                         ['label' => 'Home', 'url' => 'https://www.andersenwindows.com/'],
                         ['label' => 'Support', 'url' => 'https://www.andersenwindows.com/support/'],
                         ['label' => 'Warranty', 'url' => 'https://www.andersenwindows.com/support/warranty'],
-                        ['label' => 'Help Center', 'url' => 'https://helpcenter.andersenwindows.com/aw/articles/Knowledge/Andersen-Limited-Warranties'],
+                        ['label' => 'FAQs', 'url' => 'https://www.andersenwindows.com/support/faqs'],
+                    ],
+                    'warranty_links' => [
+                        ['label' => 'Warranty Information', 'url' => 'https://www.andersenwindows.com/support/warranty'],
+                        ['label' => 'Warranty Documents', 'url' => 'https://www.andersenwindows.com/for-professionals/documents/warranty'],
+                    ],
+                    'faq_links' => [
+                        ['label' => 'FAQs', 'url' => 'https://www.andersenwindows.com/support/faqs'],
                     ],
                 ],
                 'Pella' => [
@@ -758,38 +980,74 @@ HTML;
                         ['label' => 'Warranties', 'url' => 'https://www.pella.com/support/warranties/'],
                         ['label' => 'Support', 'url' => 'https://www.pella.com/support/'],
                     ],
+                    'warranty_links' => [
+                        ['label' => 'Warranty Information', 'url' => 'https://www.pella.com/support/warranties/'],
+                        ['label' => 'Historical Warranties', 'url' => 'https://www.pella.com/support/warranties/historical/'],
+                    ],
+                    'faq_links' => [
+                        ['label' => 'FAQs', 'url' => 'https://www.pella.com/support/faq/'],
+                    ],
                 ],
                 'CRL' => [
                     'summary' => 'CRL architectural hardware and glazing sources.',
                     'links' => [
                         ['label' => 'Home', 'url' => 'https://www.crlaurence.com/'],
-                        ['label' => 'About Us', 'url' => 'https://www.crlaurence.com/about-us'],
-                        ['label' => 'Automotive Windows Supplies', 'url' => 'https://www.crlaurence.com/productcategory/AutomotiveWindowsSupplies'],
+                        ['label' => 'Shower Hardware', 'url' => 'https://www.crlaurence.com/productcategory/ShowerHardware'],
+                        ['label' => 'Glass Entrance & Interior Systems', 'url' => 'https://www.crlaurence.com/productcategory/GlassEntranceInteriorSystems'],
+                        ['label' => 'Railing & Windscreen Systems', 'url' => 'https://www.crlaurence.com/productcategory/RailingWindscreenSystems'],
+                        ['label' => 'Door & Window Hardware', 'url' => 'https://www.crlaurence.com/productcategory/DoorWindowHardware'],
+                        ['label' => 'Glazing Tools & Supplies', 'url' => 'https://www.crlaurence.com/productcategory/GlazingToolsSupplies'],
+                        ['label' => 'FAQs', 'url' => 'https://www.crlaurence.com/faq'],
+                    ],
+                    'warranty_links' => [
+                        ['label' => 'Warranty Information', 'url' => 'https://www.crlaurence.com/about-us/business-policies'],
+                    ],
+                    'faq_links' => [
+                        ['label' => 'FAQs', 'url' => 'https://www.crlaurence.com/faq'],
                     ],
                 ],
                 'Dallas Flat Glass' => [
                     'summary' => 'Dallas Flat Glass wholesale and fabrication source.',
                     'links' => [
                         ['label' => 'Home', 'url' => 'https://dallasflatglass.com/'],
+                        ['label' => 'Questions / Contact', 'url' => 'https://dallasflatglass.com/'],
                         ['label' => 'LinkedIn', 'url' => 'https://www.linkedin.com/company/dallas-flat-glass-distributors'],
                         ['label' => 'MapQuest Profile', 'url' => 'https://www.mapquest.com/us/texas/dallas-flat-glass-distributors-304386954'],
+                    ],
+                    'warranty_note' => 'No public warranty page was found. Confirm warranty terms directly with Dallas Flat Glass before quoting.',
+                    'faq_links' => [
+                        ['label' => 'Questions / Contact', 'url' => 'https://dallasflatglass.com/'],
                     ],
                 ],
                 'Ghost Glass' => [
                     'summary' => 'Ghost Glass smart film source and installation references.',
                     'links' => [
                         ['label' => 'Home', 'url' => 'https://ghostglassfilm.com/'],
-                        ['label' => 'About Us', 'url' => 'https://ghostglassfilm.com/about-us'],
-                        ['label' => 'Installations', 'url' => 'https://ghostglassfilm.com/installations'],
+                        ['label' => 'Smart Film DIY', 'url' => 'https://ghostglassfilm.com/smart-film-diy'],
+                        ['label' => 'Installation Guide', 'url' => 'https://ghostglassfilm.com/smart-film-installation-guide'],
+                        ['label' => 'FAQs', 'url' => 'https://ghostglassfilm.com/faqs-1'],
+                    ],
+                    'warranty_links' => [
+                        ['label' => 'Warranty Information', 'url' => 'https://ghostglassfilm.com/warrantyanddisclaimers'],
+                    ],
+                    'faq_links' => [
+                        ['label' => 'FAQs', 'url' => 'https://ghostglassfilm.com/faqs-1'],
                     ],
                 ],
-                'Jeld-Wen' => [
+                'JELD-WEN' => [
                     'summary' => 'JELD-WEN product, warranty, and document library sources.',
                     'links' => [
                         ['label' => 'Home', 'url' => 'https://www.jeld-wen.com/en-us/'],
                         ['label' => 'Brands and Products', 'url' => 'https://www.corporate.jeld-wen.com/brands-and-products'],
                         ['label' => 'Warranty Guide', 'url' => 'https://www.jeld-wen.com/en-us/all-warranty-guide'],
                         ['label' => 'Documents', 'url' => 'https://www.jeld-wen.com/en-us/documents'],
+                        ['label' => 'FAQ', 'url' => 'https://brandstore.jeld-wen.com/customer-service/faq/'],
+                    ],
+                    'warranty_links' => [
+                        ['label' => 'Warranty Information', 'url' => 'https://www.jeld-wen.com/en-us/all-warranty-guide'],
+                    ],
+                    'faq_links' => [
+                        ['label' => 'FAQs', 'url' => 'https://brandstore.jeld-wen.com/customer-service/faq/'],
                     ],
                 ],
             ],
@@ -807,8 +1065,8 @@ HTML;
                     'sources' => ['Eclipse'],
                 ],
                 'Residential / Glass & Windows' => [
-                    'summary' => 'Pella, Dallas Flat Glass, Andersen, Jeld-Wen, CRL, and Ghost Glass inform the glass pages.',
-                    'sources' => ['Pella', 'Dallas Flat Glass', 'Andersen', 'Jeld-Wen', 'CRL', 'Ghost Glass'],
+                    'summary' => 'Pella, Dallas Flat Glass, Andersen, JELD-WEN, CRL, and Ghost Glass inform the glass pages.',
+                    'sources' => ['Pella', 'Dallas Flat Glass', 'Andersen', 'JELD-WEN', 'CRL', 'Ghost Glass'],
                 ],
                 'Commercial / Solar Control & Safety' => [
                     'summary' => '3M and SmartTint drive the commercial film pages.',
@@ -819,8 +1077,8 @@ HTML;
                     'sources' => ['Eclipse'],
                 ],
                 'Commercial / Glass & Windows' => [
-                    'summary' => 'Pella, Dallas Flat Glass, Andersen, Jeld-Wen, and CRL drive the commercial glazing page.',
-                    'sources' => ['Pella', 'Dallas Flat Glass', 'Andersen', 'Jeld-Wen', 'CRL'],
+                    'summary' => 'Pella, Dallas Flat Glass, Andersen, JELD-WEN, and CRL drive the commercial glazing page.',
+                    'sources' => ['Pella', 'Dallas Flat Glass', 'Andersen', 'JELD-WEN', 'CRL'],
                 ],
                 'Commercial / Window Treatments' => [
                     'summary' => 'Hunter Douglas, Alta, and Norman drive the commercial shade pages.',
@@ -838,7 +1096,7 @@ HTML;
                 'pages' => [
                     ['name' => 'Source of Truth', 'summary' => 'Master source map for brands, services, and reference documents.'],
                     ['name' => 'How to Use This Hub', 'summary' => 'Quick guide to navigating the knowledge base.'],
-                    ['name' => 'Where to Find Specs, Drawings, and Pricing', 'summary' => 'Explains where the technical documents and pricing references live.'],
+                    ['name' => 'Where to Find Product Info and Pricing', 'summary' => 'Explains where product details and pricing references live.'],
                     ['name' => 'How to Request Missing Documents', 'summary' => 'How to request a file or ask for a new reference page.'],
                 ],
             ],
@@ -848,17 +1106,8 @@ HTML;
             'Commercial' => [
                 'description' => 'Commercial sales resources organized by the categories the team actually sells every day.',
             ],
-            'Products' => [
-                'description' => 'All product and category references in one place, grouped so reps can find the right line fast.',
-            ],
-            'Specs & Drawings' => [
-                'description' => 'All technical docs, cut sheets, and architect files in one place.',
-            ],
-            'Warranty / Compliance' => [
-                'description' => 'All warranty notes, code concerns, and exceptions in one place.',
-            ],
-            'Reference / FAQs' => [
-                'description' => 'All objections, measurements, and comparison notes in one place.',
+            'Vendors' => [
+                'description' => 'All vendor and product references in one place, grouped so reps can find the right line fast.',
             ],
         ];
     }
@@ -866,10 +1115,7 @@ HTML;
     protected function resourceBooks(): array
     {
         return [
-            'Products' => ['description' => 'All products and categories in one place for fast reference.'],
-            'Specs & Drawings' => ['description' => 'All spec sheets, drawings, and technical files in one place.'],
-            'Warranty / Compliance' => ['description' => 'All warranty and compliance references in one place.'],
-            'Reference / FAQs' => ['description' => 'All FAQs, comparison notes, and sales references in one place.'],
+            'Vendors' => ['description' => 'All vendors and product lines in one place for fast reference.'],
         ];
     }
 
@@ -906,7 +1152,7 @@ HTML;
                     'Glass & Windows' => [
                         'description' => 'Glass replacement, window replacement, and related service references.',
                         'pages' => [
-                            ['name' => 'Window Glass', 'summary' => 'Glass replacement references and service notes.', 'products' => ['Pella', 'Dallas Flat Glass', 'Andersen', 'Jeld-Wen']],
+                            ['name' => 'Window Glass', 'summary' => 'Glass replacement references and service notes.', 'products' => ['Pella', 'Dallas Flat Glass', 'Andersen', 'JELD-WEN']],
                             ['name' => 'Frameless Showers', 'summary' => 'Shower enclosure references.', 'products' => ['CRL']],
                             ['name' => 'Window Cleaning', 'summary' => 'Care and maintenance notes for finished work.'],
                         ],
@@ -934,7 +1180,7 @@ HTML;
                     'Glass & Windows' => [
                         'description' => 'Commercial glass replacement, glazing, and storefront references.',
                         'pages' => [
-                            ['name' => 'Commercial Glazing', 'summary' => 'Storefront and glazing references.', 'products' => ['Pella', 'Dallas Flat Glass', 'Andersen', 'Jeld-Wen', 'CRL']],
+                            ['name' => 'Commercial Glazing', 'summary' => 'Storefront and glazing references.', 'products' => ['Pella', 'Dallas Flat Glass', 'Andersen', 'JELD-WEN', 'CRL']],
                         ],
                     ],
                     'Window Treatments' => [
@@ -948,16 +1194,11 @@ HTML;
         ];
     }
 
-    protected function resourcePageTitle(string $chapterName, string $categoryName): string
-    {
-        return $chapterName . ' - ' . $categoryName;
-    }
-
-    protected function buildServiceCategoryHtml(string $serviceName, string $chapterName, string $categoryName, string $summary, array $productNames, array $productPages, array $resourcePages): string
+    protected function buildServiceCategoryHtml(string $serviceName, string $chapterName, string $categoryName, string $summary, array $productNames, array $productPages, ?Book $vendorsBook = null): string
     {
         $resourceLinks = '';
-        foreach ($resourcePages as $label => $page) {
-            $resourceLinks .= '<a href="' . e($page->getUrl()) . '" class="sotx-pill">' . e($label) . '</a>';
+        if ($vendorsBook) {
+            $resourceLinks .= '<a href="' . e($vendorsBook->getUrl()) . '" class="sotx-pill">Vendors</a>';
         }
 
         $productsHtml = $this->buildProductChipsHtml($productNames, $productPages);
@@ -977,214 +1218,26 @@ HTML;
 HTML;
     }
 
-    protected function buildResourcePageHtml(string $resourceBookName, string $serviceName, string $chapterName, string $categoryName, string $summary, array $productNames, array $productPages): string
+    protected function buildBrandPageHtml(string $brandName, string $pageName, string $summary, array $brandProfile = [], array $productPages = []): string
     {
-        $sections = match ($resourceBookName) {
-            'Products' => [
-                [
-                    'title' => 'Product Overview',
-                    'summary' => 'Describe the product direction and where this category fits.',
-                    'points' => [
-                        'List the product lines or brands that belong here.',
-                        'Add the quick sales story for this category.',
-                        'Keep this section short and easy to update.',
-                    ],
-                ],
-                [
-                    'title' => 'What We Carry',
-                    'summary' => 'Capture the lines, collections, or brands we sell.',
-                    'points' => [
-                        'List the actual products carried by this category.',
-                        'Call out the brands most often quoted.',
-                        'Link out to deeper brand references later.',
-                    ],
-                ],
-                [
-                    'title' => 'Selling Points',
-                    'summary' => 'Show why this category matters to the rep.',
-                    'points' => [
-                        'Add the core benefits.',
-                        'Add a quick comparison note.',
-                        'Add the best objection response.',
-                    ],
-                ],
-            ],
-            'Specs & Drawings' => [
-                [
-                    'title' => 'Spec Sheet Index',
-                    'summary' => 'Add the approved spec sheets for this category.',
-                    'points' => [
-                        'List the current PDFs or cut sheets.',
-                        'Note revision dates when needed.',
-                        'Call out where the master file lives.',
-                    ],
-                ],
-                [
-                    'title' => 'Architect Drawings',
-                    'summary' => 'Collect drawings and install details.',
-                    'points' => [
-                        'Add architect files or detail drawings.',
-                        'Call out file format or source links.',
-                        'Note whether the drawing is current.',
-                    ],
-                ],
-                [
-                    'title' => 'Install Diagrams',
-                    'summary' => 'Collect install diagrams and setup references.',
-                    'points' => [
-                        'Add install sheets or diagrams.',
-                        'Call out any special install considerations.',
-                        'Link to project-specific guidance later.',
-                    ],
-                ],
-            ],
-            'Warranty / Compliance' => [
-                [
-                    'title' => 'Warranty Summary',
-                    'summary' => 'Capture the main warranty terms for this category.',
-                    'points' => [
-                        'List the active warranty language.',
-                        'Add coverage windows and exclusions.',
-                        'Link to manufacturer docs when ready.',
-                    ],
-                ],
-                [
-                    'title' => 'Compliance Notes',
-                    'summary' => 'Note code, field, or project constraints.',
-                    'points' => [
-                        'Add code or compliance notes.',
-                        'Call out any pre-approval needs.',
-                        'Describe known project exceptions.',
-                    ],
-                ],
-                [
-                    'title' => 'Warranty Caveats',
-                    'summary' => 'Document the things reps should not promise.',
-                    'points' => [
-                        'List common exclusions.',
-                        'Add wording for edge cases.',
-                        'Keep this section short and practical.',
-                    ],
-                ],
-            ],
-            'Reference / FAQs' => [
-                [
-                    'title' => 'Sales Answers',
-                    'summary' => 'Use this for the most common customer questions.',
-                    'points' => [
-                        'Add quick answers the team can reuse.',
-                        'Add objection handling language.',
-                        'Keep the tone customer-friendly.',
-                    ],
-                ],
-                [
-                    'title' => 'Measurement Notes',
-                    'summary' => 'Capture sizing and field-measurement guidance.',
-                    'points' => [
-                        'Add measurement reminders.',
-                        'Note site-check details or caveats.',
-                        'Link to field notes later.',
-                    ],
-                ],
-                [
-                    'title' => 'Comparisons',
-                    'summary' => 'Use this for side-by-side product comparisons.',
-                    'points' => [
-                        'Compare the category to alternatives.',
-                        'Add when to choose one option over another.',
-                        'Include the simplest field-friendly language.',
-                    ],
-                ],
-            ],
-        };
-
-        $chips = $this->buildProductChipsHtml($productNames, $productPages);
-
-        $html = $this->buildScaffoldPageHtml(
-            $resourceBookName . ' / ' . $serviceName,
-            $chapterName . ' - ' . $categoryName,
-            $summary,
-            $sections
-        );
-
-        if ($resourceBookName === 'Products' && $chips !== '') {
-            $html = str_replace(
-                '<div class="sotx-note" style="margin-top:.8rem;">This page is fully scaffolded. Replace the draft guidance with approved content when you are ready.</div>',
-                '<div class="sotx-note" style="margin-top:.8rem;">This page is fully scaffolded. Replace the draft guidance with approved content when you are ready.</div>' . $chips,
-                $html
-            );
-        }
-
-        return $html;
-    }
-
-    protected function buildBrandPageHtml(string $brandName, string $pageName, string $summary, array $brandProfile = []): string
-    {
-        $websiteUrl = $brandProfile['website'] ?? null;
-        $quickLinks = $brandProfile['quick_links'] ?? null;
-        $warrantyLinks = $brandProfile['warranty_links'] ?? null;
+        $sourceBrandProfile = $this->sourceRegistry()['brands'][$brandName] ?? [];
+        $websiteUrl = $brandProfile['website'] ?? ($sourceBrandProfile['website'] ?? null);
+        $quickLinks = $brandProfile['quick_links'] ?? ($brandProfile['links'] ?? ($sourceBrandProfile['links'] ?? null));
+        $inventoryProducts = $this->parsedProductMarkdownBrands()[$brandName] ?? ($brandProfile['products'] ?? []);
         $productSection = [];
-        foreach (($brandProfile['products'] ?? []) as $product) {
+        foreach ($inventoryProducts as $product) {
+            $productPage = $productPages[$product['name']] ?? null;
             $productSection[] = [
                 'title' => $product['name'],
                 'summary' => $product['summary'] ?? '',
                 'points' => $product['points'] ?? [],
-                'url' => $product['url'] ?? null,
+                'url' => $productPage?->getUrl() ?? ($product['url'] ?? null),
             ];
         }
-
-        $sections = $brandProfile['sections'] ?? [
-            [
-                'title' => 'Product Overview',
-                'summary' => 'Describe what we carry from this brand and where it fits.',
-                'points' => [
-                    'List the exact product lines we sell.',
-                    'Note the customers or project types that use them.',
-                    'Add any sales notes that help reps position the brand.',
-                ],
-            ],
-            [
-                'title' => 'Selling Points',
-                'summary' => 'Capture the reasons a rep should lead with this brand.',
-                'points' => [
-                    'Add the main benefits and differentiators.',
-                    'Add comparison notes against common alternatives.',
-                    'Include the most useful talking points for the field team.',
-                ],
-            ],
-            [
-                'title' => 'Specs & Drawings',
-                'summary' => 'Store cut sheets, technical documents, and any line drawings here.',
-                'points' => [
-                    'Link to approved spec sheets.',
-                    'Link to install drawings or architect files.',
-                    'Add document version or revision notes.',
-                ],
-            ],
-            [
-                'title' => 'Warranty & Compliance',
-                'summary' => 'Summarize warranties, code concerns, and limitations.',
-                'points' => [
-                    'Add warranty terms or exclusions.',
-                    'Add project limitations or compliance notes.',
-                    'Call out anything that needs pre-approval.',
-                ],
-            ],
-            [
-                'title' => 'Reference / FAQs',
-                'summary' => 'Capture objections, measurement notes, and comparison language.',
-                'points' => [
-                    'Add common customer questions and responses.',
-                    'Add field notes from installers or project managers.',
-                    'Add side-by-side comparisons when helpful.',
-                ],
-            ],
-        ];
-
         if (!empty($productSection)) {
-            array_unshift($sections, [
+            $renderSections = [[
                 'title' => 'Products',
-                'summary' => 'Direct links to the product lines we use from this brand.',
+                'summary' => 'Direct links to the product lines we use from this vendor.',
                 'points' => array_map(function (array $product): array {
                     $label = $product['title'];
                     if (!empty($product['summary'])) {
@@ -1201,37 +1254,10 @@ HTML;
                         'text' => $label,
                     ];
                 }, $productSection),
-            ]);
+            ]];
+        } else {
+            $renderSections = [];
         }
-
-        if (!empty($websiteUrl)) {
-            foreach ($sections as &$section) {
-                if (($section['title'] ?? '') === 'Warranty & Compliance') {
-                    $linksToInsert = $warrantyLinks ?? [
-                        [
-                            'label' => 'Website',
-                            'url' => $websiteUrl,
-                        ],
-                    ];
-
-                    foreach (array_reverse($linksToInsert) as $link) {
-                        $linkUrl = $link['url'] ?? null;
-                        if (empty($linkUrl)) {
-                            continue;
-                        }
-
-                        $linkLabel = $link['label'] ?? 'Website';
-                        array_unshift($section['points'], [
-                            'html' => '<a href="' . e($linkUrl) . '" target="_blank" rel="noreferrer">' . e($linkLabel) . '</a>',
-                        ]);
-                    }
-                    break;
-                }
-            }
-            unset($section);
-        }
-
-        $html = $this->buildScaffoldPageHtml($brandName, $pageName, $summary, $sections);
 
         $sourceLinks = '';
         if (!empty($quickLinks)) {
@@ -1253,15 +1279,553 @@ HTML;
             }
         }
 
-        if ($sourceLinks !== '') {
-            $html = str_replace(
-                '<div class="sotx-note" style="margin-top:.8rem;">This page is fully scaffolded. Replace the draft guidance with approved content when you are ready.</div>',
-                '<div class="sotx-note" style="margin-top:.8rem;">This page is fully scaffolded. Replace the draft guidance with approved content when you are ready.</div><div class="sotx-section-head" style="margin-top:.8rem;"><div><h2>Quick Links</h2></div></div><div class="sotx-actions" style="margin-top:.55rem;">' . $sourceLinks . '</div>',
-                $html
-            );
+        $leadContent = $this->renderScaffoldSections($renderSections);
+        $renderSections = [];
+
+        $warrantyLinks = $this->buildVendorWarrantyLinks($brandName, $brandProfile);
+        $warrantyNote = $this->buildVendorWarrantyNote($brandName);
+        if (!empty($warrantyLinks) || $warrantyNote !== '') {
+            $warrantyLinksHtml = $this->renderLinkPills($warrantyLinks, 'Warranty Information');
+            $warrantyLinksHtml .= '<p class="sotx-note" style="margin:.65rem 0 0;">' . e($this->buildWarrantyReminder($brandName)) . '</p>';
+
+            if ($warrantyNote !== '') {
+                $warrantyLinksHtml .= '<p class="sotx-note" style="margin:.65rem 0 0;">' . e($warrantyNote) . '</p>';
+            }
+
+            if ($warrantyLinksHtml !== '') {
+                $leadContent .= <<<HTML
+<section class="sotx-section">
+    <div class="sotx-section-head">
+        <div>
+            <h2>Warranty Information</h2>
+            <p class="sotx-note" style="margin:.35rem 0 0;">Use these links for current warranty terms before quoting coverage.</p>
+        </div>
+    </div>
+    {$warrantyLinksHtml}
+</section>
+HTML;
+            }
         }
 
+        $faqLinks = $this->buildVendorFaqLinks($brandName);
+        if (!empty($faqLinks)) {
+            $faqLinksHtml = $this->renderLinkPills($faqLinks, 'FAQs');
+            if ($faqLinksHtml !== '') {
+                $leadContent .= <<<HTML
+<section class="sotx-section">
+    <div class="sotx-section-head">
+        <div>
+            <h2>FAQs</h2>
+            <p class="sotx-note" style="margin:.35rem 0 0;">Use these links for common product, care, ordering, and warranty questions.</p>
+        </div>
+    </div>
+    {$faqLinksHtml}
+</section>
+HTML;
+            }
+        }
+
+        if ($sourceLinks !== '') {
+            $leadContent .= <<<HTML
+<section class="sotx-section">
+    <div class="sotx-section-head">
+        <div>
+            <h2>Quick Links</h2>
+            <p class="sotx-note" style="margin:.35rem 0 0;">Fast access to the live public pages and dealer resources for this brand.</p>
+        </div>
+    </div>
+    <div class="sotx-actions" style="margin-top:.55rem;">{$sourceLinks}</div>
+</section>
+HTML;
+        }
+
+        $sourceInventoryHtml = $this->buildSourceInventoryHtml($brandName);
+        if ($sourceInventoryHtml !== '') {
+            $leadContent .= $sourceInventoryHtml;
+        }
+
+        return $this->buildScaffoldPageHtml($brandName, $pageName, $summary, $renderSections, $leadContent);
+    }
+
+    protected function buildVendorProductPageHtml(string $brandName, string $productName, string $summary, ?string $url, array $inventoryProducts = [], array $brandProfile = [], array $vendorProductPages = []): string
+    {
+        $relatedProducts = [];
+        foreach ($inventoryProducts as $product) {
+            if (($product['name'] ?? '') === $productName) {
+                continue;
+            }
+
+            $relatedProducts[] = $product;
+        }
+
+        $quickLinks = [];
+        if (!empty($url)) {
+            $quickLinks[] = [
+                'label' => 'Official Product Page',
+                'url' => $url,
+            ];
+        }
+
+        $leadContent = '';
+        $links = '';
+        foreach ($quickLinks as $link) {
+            $links .= '<a href="' . e($link['url']) . '" class="sotx-pill" target="_blank" rel="noreferrer">' . e($link['label']) . '</a>';
+        }
+
+        if ($links === '') {
+            $links = '<span class="sotx-note" style="display:block;">No public product URL is listed for this line yet. Use the vendor hub below for broader context.</span>';
+        }
+
+        $leadContent = <<<HTML
+<section class="sotx-section">
+    <div class="sotx-section-head">
+        <div>
+            <h2>Quick Links</h2>
+            <p class="sotx-note" style="margin:.35rem 0 0;">Use the official source when you need the live product page or brochure.</p>
+        </div>
+    </div>
+    <div class="sotx-actions" style="margin-top:.55rem;">{$links}</div>
+</section>
+HTML;
+
+        $productSummary = trim($summary);
+        if ($productSummary === '') {
+            $productSummary = 'Product page for ' . $productName . '.';
+        }
+
+        $fitBullets = $this->buildProductFitBullets($productName, $productSummary, $brandName);
+        $relatedHtml = '';
+        if (!empty($relatedProducts)) {
+            $relatedHtml .= '<div class="sotx-chip-list">';
+            foreach (array_slice($relatedProducts, 0, 8) as $relatedProduct) {
+                $relatedLabel = $relatedProduct['name'];
+                if (!empty($relatedProduct['summary'])) {
+                    $relatedLabel .= ' - ' . $relatedProduct['summary'];
+                }
+
+                $relatedPage = $vendorProductPages[$relatedProduct['name']] ?? null;
+                if ($relatedPage instanceof Page) {
+                    $relatedHtml .= '<a class="sotx-chip" href="' . e($relatedPage->getUrl()) . '">' . e($relatedLabel) . '</a>';
+                } else {
+                    $relatedHtml .= '<span class="sotx-chip">' . e($relatedLabel) . '</span>';
+                }
+            }
+            $relatedHtml .= '</div>';
+        }
+
+        $sections = [
+            [
+                'title' => 'Product Summary',
+                'summary' => 'Use this page as the quick snapshot for the product line.',
+                'points' => [
+                    [
+                        'text' => $productSummary,
+                    ],
+                    [
+                        'text' => 'Vendor: ' . $brandName,
+                    ],
+                    [
+                        'text' => 'Official product page is linked above for line-specific details.',
+                    ],
+                ],
+            ],
+            [
+                'title' => 'Best Fit For',
+                'summary' => 'Use these notes when deciding whether the line fits the project.',
+                'points' => $fitBullets,
+            ],
+            [
+                'title' => 'Related Lines',
+                'summary' => 'Other lines we carry from the same vendor.',
+                'points' => !empty($relatedProducts)
+                    ? array_map(function (array $relatedProduct) use ($vendorProductPages): array {
+                        $label = $relatedProduct['name'];
+                        if (!empty($relatedProduct['summary'])) {
+                            $label .= ' - ' . $relatedProduct['summary'];
+                        }
+
+                        $relatedPage = $vendorProductPages[$relatedProduct['name']] ?? null;
+                        if ($relatedPage instanceof Page) {
+                            return [
+                                'html' => '<a href="' . e($relatedPage->getUrl()) . '" target="_self" rel="internal">' . e($label) . '</a>',
+                            ];
+                        }
+
+                        return ['text' => $label];
+                    }, array_slice($relatedProducts, 0, 8))
+                    : [
+                        ['text' => 'No additional related product lines are listed for this vendor yet.'],
+                    ],
+            ],
+        ];
+
+        $warrantyPoints = $this->buildLinkListPoints($this->buildVendorWarrantyLinks($brandName, $brandProfile));
+        $warrantyPoints[] = ['text' => $this->buildWarrantyReminder($brandName)];
+        $warrantyNote = $this->buildVendorWarrantyNote($brandName);
+        if ($warrantyNote !== '') {
+            $warrantyPoints[] = ['text' => $warrantyNote];
+        }
+
+        $sections[] = [
+            'title' => 'Warranty Information',
+            'summary' => 'Vendor warranty paths that apply before quoting coverage for this product line.',
+            'points' => $warrantyPoints,
+        ];
+
+        $faqPoints = $this->buildLinkListPoints($this->buildVendorFaqLinks($brandName));
+        if (empty($faqPoints)) {
+            $faqPoints[] = ['text' => 'No public FAQ page is listed for this vendor yet.'];
+        }
+
+        $sections[] = [
+            'title' => 'FAQs',
+            'summary' => 'Vendor FAQ paths for common product, care, ordering, and warranty questions.',
+            'points' => $faqPoints,
+        ];
+
+        $sourceBrandProfile = $this->sourceRegistry()['brands'][$brandName] ?? [];
+        $vendorSource = $brandProfile['website'] ?? ($sourceBrandProfile['website'] ?? null);
+        if (empty($vendorSource) && !empty($sourceBrandProfile['links'][0]['url'] ?? null)) {
+            $vendorSource = $sourceBrandProfile['links'][0]['url'];
+        }
+        if (!empty($vendorSource)) {
+            $leadContent .= <<<HTML
+<section class="sotx-section">
+    <div class="sotx-section-head">
+        <div>
+            <h2>Vendor Hub</h2>
+            <p class="sotx-note" style="margin:.35rem 0 0;">Reference the vendor hub when you need broader context for the product line.</p>
+        </div>
+    </div>
+    <div class="sotx-actions" style="margin-top:.55rem;">
+        <a href="{$vendorSource}" class="sotx-pill" target="_blank" rel="noreferrer">Vendor Website</a>
+    </div>
+</section>
+HTML;
+        }
+
+        return $this->buildScaffoldPageHtml(
+            $brandName,
+            $productName,
+            $summary,
+            $sections,
+            $leadContent
+        );
+    }
+
+    protected function buildProductFitBullets(string $productName, string $summary, string $brandName): array
+    {
+        $haystack = strtolower($productName . ' ' . $summary . ' ' . $brandName);
+
+        $bullets = [];
+
+        if (str_contains($haystack, 'film')) {
+            $bullets[] = 'Use for sun control, privacy, or safety depending on the series.';
+            $bullets[] = 'Good choice when the project needs a film-based solution on existing glass.';
+        }
+
+        if (str_contains($haystack, 'shade') || str_contains($haystack, 'roman') || str_contains($haystack, 'woven')) {
+            $bullets[] = 'Use for light control, privacy, and a softer interior finish.';
+            $bullets[] = 'Good fit for rooms where the customer wants design plus function.';
+        }
+
+        if (str_contains($haystack, 'blind')) {
+            $bullets[] = 'Use when the project needs straightforward light control with a harder treatment style.';
+            $bullets[] = 'Good fit for everyday window coverage and easy quoting.';
+        }
+
+        if (str_contains($haystack, 'shutter')) {
+            $bullets[] = 'Use when the customer wants a more architectural, fixed-window look.';
+            $bullets[] = 'Good fit for moisture-prone or design-forward spaces depending on the line.';
+        }
+
+        if (str_contains($haystack, 'awning') || str_contains($haystack, 'screen') || str_contains($haystack, 'roof')) {
+            $bullets[] = 'Use for exterior shade, patio comfort, or weather protection.';
+            $bullets[] = 'Good fit for outdoor living and solar management projects.';
+        }
+
+        if (str_contains($haystack, 'glass') || str_contains($haystack, 'window') || str_contains($haystack, 'door')) {
+            $bullets[] = 'Use when the project needs a replacement, fabrication, or new-build opening product.';
+            $bullets[] = 'Good fit for residential or commercial openings depending on the line.';
+        }
+
+        if (str_contains($haystack, 'hardware') || str_contains($haystack, 'railing') || str_contains($haystack, 'shower')) {
+            $bullets[] = 'Use for glass hardware, railing, or shower projects that need a component-based solution.';
+            $bullets[] = 'Good fit when the installation needs supporting hardware and finishes.';
+        }
+
+        if (str_contains($haystack, 'smart') || str_contains($haystack, 'tint')) {
+            $bullets[] = 'Use when the project needs switchable privacy or electronically controlled film or glass.';
+            $bullets[] = 'Good fit for conference rooms, hospitality, and residential privacy upgrades.';
+        }
+
+        if (empty($bullets)) {
+            $bullets[] = 'Use this line when it matches the job specification and the vendor summary above.';
+            $bullets[] = 'Confirm the exact product family before quoting or ordering.';
+        }
+
+        $bullets[] = 'Compare this line against the other products listed below before choosing a final solution.';
+
+        return array_values(array_unique($bullets));
+    }
+
+    protected function buildVendorWarrantyLinks(string $brandName, array $brandProfile = []): array
+    {
+        $sourceBrandProfile = $this->sourceRegistry()['brands'][$brandName] ?? [];
+        if (!empty($sourceBrandProfile['warranty_links'] ?? [])) {
+            return $this->uniqueLinksByUrl($sourceBrandProfile['warranty_links']);
+        }
+
+        $explicitLinks = [];
+        foreach (($brandProfile['warranty_links'] ?? []) as $link) {
+            $label = strtolower(trim((string) ($link['label'] ?? '')));
+            $url = strtolower(trim((string) ($link['url'] ?? '')));
+
+            if (!str_contains($label, 'warranty') && !str_contains($url, 'warranty')) {
+                continue;
+            }
+
+            $explicitLinks[] = [
+                'label' => 'Warranty Information',
+                'url' => $link['url'],
+            ];
+        }
+
+        return $this->uniqueLinksByUrl($explicitLinks);
+    }
+
+    protected function buildVendorWarrantyNote(string $brandName): string
+    {
+        return (string) ($this->sourceRegistry()['brands'][$brandName]['warranty_note'] ?? '');
+    }
+
+    protected function buildWarrantyReminder(string $brandName): string
+    {
+        if ($brandName === 'Dallas Flat Glass') {
+            return 'Use project-specific or manufacturer-specific warranty language until direct warranty docs are provided.';
+        }
+
+        return 'Confirm the exact product line, install conditions, and purchase date before quoting coverage.';
+    }
+
+    protected function buildVendorFaqLinks(string $brandName): array
+    {
+        return $this->uniqueLinksByUrl($this->sourceRegistry()['brands'][$brandName]['faq_links'] ?? []);
+    }
+
+    protected function renderLinkPills(array $links, string $fallbackLabel): string
+    {
+        $html = '';
+        foreach ($links as $link) {
+            $linkUrl = $link['url'] ?? null;
+            if (empty($linkUrl)) {
+                continue;
+            }
+
+            $html .= '<a href="' . e($linkUrl) . '" class="sotx-pill" target="_blank" rel="noreferrer">' . e($link['label'] ?? $fallbackLabel) . '</a>';
+        }
+
+        return $html === '' ? '' : '<div class="sotx-actions" style="margin-top:.55rem;">' . $html . '</div>';
+    }
+
+    protected function buildLinkListPoints(array $links): array
+    {
+        $points = [];
+        foreach ($links as $link) {
+            $linkUrl = $link['url'] ?? null;
+            if (empty($linkUrl)) {
+                continue;
+            }
+
+            $label = $link['label'] ?? 'Link';
+            $points[] = [
+                'html' => '<a href="' . e($linkUrl) . '" target="_blank" rel="noreferrer">' . e($label) . '</a>',
+            ];
+        }
+
+        return $points;
+    }
+
+    protected function uniqueLinksByUrl(array $links): array
+    {
+        $unique = [];
+        foreach ($links as $link) {
+            $url = $link['url'] ?? null;
+            if (empty($url) || isset($unique[$url])) {
+                continue;
+            }
+
+            $unique[$url] = $link;
+        }
+
+        return array_values($unique);
+    }
+
+    protected function buildSourceInventoryHtml(string $brandName): string
+    {
+        $brands = $this->parsedSourceMarkdownBrands();
+        $sections = $brands[$brandName] ?? [];
+
+        if (empty($sections)) {
+            return '';
+        }
+
+        $sectionHtml = '';
+        foreach ($sections as $sectionName => $items) {
+            $sectionName = e($sectionName);
+            $listItems = '';
+            foreach ($items as $item) {
+                $listItems .= '<li>' . $this->renderSourceMarkdownLine($item) . '</li>';
+            }
+
+            $sectionHtml .= <<<HTML
+<section class="sotx-card sotx-mini-card sotx-template-block">
+    <div class="sotx-card-top" style="align-items:center;">
+        <div>
+            <p class="sotx-kicker" style="margin-bottom:.35rem;">Verified Source</p>
+            <h4>{$sectionName}</h4>
+        </div>
+        <span class="sotx-flag">Live</span>
+    </div>
+    <ul class="sotx-template-list">
+        {$listItems}
+    </ul>
+</section>
+HTML;
+        }
+
+        return <<<HTML
+<section class="sotx-section">
+    <div class="sotx-section-head">
+        <div>
+            <h2>Source Inventory</h2>
+            <p class="sotx-note" style="margin:.35rem 0 0;">Official vendor links and access notes used to keep this vendor page current.</p>
+        </div>
+    </div>
+    <div class="sotx-service-grid">
+        {$sectionHtml}
+    </div>
+</section>
+HTML;
+    }
+
+    protected function parsedSourceMarkdownBrands(): array
+    {
+        $path = base_path('docs/source.md');
+        if (!is_file($path)) {
+            return [];
+        }
+
+        $brands = [];
+        $currentBrand = null;
+        $currentSection = null;
+
+        foreach (preg_split('/\R/', file_get_contents($path) ?: '') as $line) {
+            $trimmed = trim($line);
+
+            if (preg_match('/^###\\s+(.+)$/', $trimmed, $matches)) {
+                $currentBrand = $matches[1];
+                $currentSection = null;
+                continue;
+            }
+
+            if ($currentBrand === null) {
+                continue;
+            }
+
+            if (preg_match('/^\\*\\*(.+)\\*\\*$/', $trimmed, $matches)) {
+                $currentSection = $matches[1];
+                $brands[$currentBrand][$currentSection] ??= [];
+                continue;
+            }
+
+            if ($trimmed === '' || $trimmed === '---' || str_starts_with($trimmed, '## ')) {
+                continue;
+            }
+
+            $sectionKey = $currentSection ?? 'Notes';
+            if (str_starts_with($trimmed, '- ')) {
+                $trimmed = substr($trimmed, 2);
+            }
+
+            $brands[$currentBrand][$sectionKey][] = $trimmed;
+        }
+
+        return $brands;
+    }
+
+    protected function renderSourceMarkdownLine(string $line): string
+    {
+        $pattern = '/\\[(.*?)\\]\\((https?:\\/\\/[^)]+)\\)/';
+        $offset = 0;
+        $html = '';
+
+        while (preg_match($pattern, $line, $matches, PREG_OFFSET_CAPTURE, $offset)) {
+            $matchText = $matches[0][0];
+            $matchStart = $matches[0][1];
+
+            $html .= e(substr($line, $offset, $matchStart - $offset));
+            $html .= '<a href="' . e($matches[2][0]) . '" target="_blank" rel="noreferrer">' . e($matches[1][0]) . '</a>';
+            $offset = $matchStart + strlen($matchText);
+        }
+
+        $html .= e(substr($line, $offset));
+
         return $html;
+    }
+
+    protected function parsedProductMarkdownBrands(): array
+    {
+        $path = base_path('docs/products.md');
+        if (!is_file($path)) {
+            return [];
+        }
+
+        $brands = [];
+        $currentBrand = null;
+
+        foreach (preg_split('/\R/', file_get_contents($path) ?: '') as $line) {
+            $trimmed = trim($line);
+
+            if (preg_match('/^###\\s+(.+)$/', $trimmed, $matches)) {
+                $currentBrand = $matches[1];
+                $brands[$currentBrand] ??= [];
+                continue;
+            }
+
+            if ($currentBrand === null || $trimmed === '' || str_starts_with($trimmed, '#') || $trimmed === '---') {
+                continue;
+            }
+
+            if (!str_starts_with($trimmed, '- ')) {
+                continue;
+            }
+
+            $item = substr($trimmed, 2);
+            $name = $item;
+            $url = null;
+            $summary = '';
+
+            if (preg_match('/^\\[(.*?)\\]\\((https?:\\/\\/[^)]+)\\)\\s*-\\s*(.+)$/', $item, $matches)) {
+                $name = $matches[1];
+                $url = $matches[2];
+                $summary = $matches[3];
+            } elseif (preg_match('/^\\[(.*?)\\]\\((https?:\\/\\/[^)]+)\\)$/', $item, $matches)) {
+                $name = $matches[1];
+                $url = $matches[2];
+            } elseif (preg_match('/^(.+?)\\s*-\\s*(.+)$/', $item, $matches)) {
+                $name = $matches[1];
+                $summary = $matches[2];
+            }
+
+            $brands[$currentBrand][] = [
+                'name' => trim($name),
+                'url' => $url,
+                'summary' => trim($summary),
+            ];
+        }
+
+        return $brands;
     }
 
     protected function brandProfiles(): array
@@ -1273,6 +1837,7 @@ HTML;
                     ['label' => 'Pella Home Page', 'url' => 'https://www.pella.com/'],
                     ['label' => 'Pella Windows', 'url' => 'https://www.pella.com/ideas/windows/'],
                     ['label' => 'Pella Warranties', 'url' => 'https://www.pella.com/support/warranties/'],
+                    ['label' => 'Pella FAQ', 'url' => 'https://www.pella.com/support/faq/'],
                 ],
                 'warranty_links' => [
                     ['label' => 'Website', 'url' => 'https://www.pella.com/'],
@@ -1315,53 +1880,6 @@ HTML;
                         'url' => 'https://www.pella.com/ideas/windows/defender-series/',
                     ],
                 ],
-                'sections' => [
-                    [
-                        'title' => 'Product Overview',
-                        'summary' => 'Pella covers windows and patio doors across wood, fiberglass, vinyl, coastal vinyl, and aluminum product lines.',
-                        'points' => [
-                            'Primary lines include Reserve, Lifestyle Series, Impervia, 250 Series, Encompass, Hurricane Shield Series, Defender Series, and Vista Series.',
-                            'Use Pella when the project needs a broad mix of style, performance, and material options.',
-                            'The brand spans both windows and doors, with shopping, education, and professional support on the site.',
-                        ],
-                    ],
-                    [
-                        'title' => 'Selling Points',
-                        'summary' => 'Pella leans into design flexibility, strong performance, and broad product selection.',
-                        'points' => [
-                            'Lifestyle Series is positioned for everyday life with energy efficiency and noise reduction.',
-                            'Impervia emphasizes strength, durability, and fiberglass performance.',
-                            'Defender and Hurricane Shield series address coastal and storm-resistant needs.',
-                        ],
-                    ],
-                    [
-                        'title' => 'Specs & Drawings',
-                        'summary' => 'Pella provides professional resources, brochures, installation instructions, and technical downloads.',
-                        'points' => [
-                            'Use Pella’s professional windows page for technical downloads.',
-                            'Use installation manuals and product brochures for project support.',
-                            'Keep the exact product line and series noted before quoting.',
-                        ],
-                    ],
-                    [
-                        'title' => 'Warranty & Compliance',
-                        'summary' => 'Pella publishes warranties by product line and includes support content for replacement and installation customers.',
-                        'points' => [
-                            'Warranty coverage varies by series and material.',
-                            'Use the warranties page for current and historical coverage documents.',
-                            'Confirm the exact line before promising coverage details on a quote.',
-                        ],
-                    ],
-                    [
-                        'title' => 'Reference / FAQs',
-                        'summary' => 'Pella’s site supports shopping, education, inspiration, and warranty lookup in one place.',
-                        'points' => [
-                            'Start at the main Pella home page for shopping and education.',
-                            'Use the support and warranty pages for service questions.',
-                            'Use the product-line pages when reps need quick positioning language.',
-                        ],
-                    ],
-                ],
                 'sources' => [
                     'Pella Professionals' => 'https://www.pella.com/professionals/windows/',
                 ],
@@ -1377,7 +1895,7 @@ HTML;
                 ],
                 'warranty_links' => [
                     ['label' => 'Website', 'url' => 'https://www.andersenwindows.com/'],
-                    ['label' => 'Warranty Information', 'url' => 'https://www.renewalbyandersen.com/resources/warranty'],
+                    ['label' => 'Warranty Information', 'url' => 'https://www.andersenwindows.com/support/warranty'],
                 ],
                 'products' => [
                     [
@@ -1411,60 +1929,13 @@ HTML;
                         'url' => 'https://www.andersenwindows.com/windows-and-doors/series/andersen-aluminum/',
                     ],
                 ],
-                'sections' => [
-                    [
-                        'title' => 'Product Overview',
-                        'summary' => 'Andersen covers windows, doors, hardware, accessories, and multiple product series for residential and professional use.',
-                        'points' => [
-                            'Core series include E-Series, A-Series, 400 Series, 200 Series, 100 Series, and Andersen Aluminum.',
-                            'Door offerings include entry doors, patio doors, MultiGlide, folding outswing, liftslide, pivot, bifold, and swing doors.',
-                            'Andersen also maintains support for accessories, parts, and service tools.',
-                        ],
-                    ],
-                    [
-                        'title' => 'Selling Points',
-                        'summary' => 'Andersen emphasizes quality, transferable limited warranties, and a deep support ecosystem.',
-                        'points' => [
-                            'Owner-to-Owner limited warranties are a major sales point and can transfer to the next homeowner.',
-                            'Professional resources include product guides, CAD/BIM/CSI tools, and installation support.',
-                            'The support site is built around replacement, cleaning, service, and warranty help.',
-                        ],
-                    ],
-                    [
-                        'title' => 'Specs & Drawings',
-                        'summary' => 'Andersen provides product guides and technical resources for professionals.',
-                        'points' => [
-                            'Use the support center for product guides and installation resources.',
-                            'Architectural tools include CAD/BIM/CSI resources and other technical references.',
-                            'Keep the exact series and product ID handy when pulling documentation.',
-                        ],
-                    ],
-                    [
-                        'title' => 'Warranty & Compliance',
-                        'summary' => 'Andersen warranty documents vary by product line and purchase date, with support information published online.',
-                        'points' => [
-                            'Warranties are product-line specific and may vary by options or accessories.',
-                            'Support pages identify limited warranties, claim steps, and product identification help.',
-                            'Non-coastal products have published glass and non-glass coverage in the support FAQs.',
-                        ],
-                    ],
-                    [
-                        'title' => 'Reference / FAQs',
-                        'summary' => 'Andersen’s support center is the main path for FAQs, service, care, and replacement help.',
-                        'points' => [
-                            'Use the FAQ and support pages for ordering, sizing, and warranty questions.',
-                            'Use the quality page for brand positioning and trust language.',
-                            'Use the help center when a rep needs to identify an installed product.',
-                        ],
-                    ],
-                ],
                 'sources' => [],
             ],
-            'Jeld-Wen' => [
+            'JELD-WEN' => [
                 'website' => 'https://www.jeld-wen.com/en-us/',
                 'quick_links' => [
                     ['label' => 'Website', 'url' => 'https://www.jeld-wen.com/en-us/'],
-                    ['label' => 'JELD-WEN About', 'url' => 'https://www.corporate.jeld-wen.com/about-us'],
+                    ['label' => 'Dealer Locator', 'url' => 'https://locations.jeld-wen.com/'],
                     ['label' => 'JELD-WEN Warranty Guide', 'url' => 'https://www.jeld-wen.com/en-us/all-warranty-guide'],
                     ['label' => 'JELD-WEN Documents', 'url' => 'https://www.jeld-wen.com/en-us/documents'],
                 ],
@@ -1497,53 +1968,6 @@ HTML;
                         'name' => 'Auraline True Composite',
                         'summary' => 'Composite windows and patio doors for a wood-like look with durable maintenance-friendly performance.',
                         'url' => 'https://www.corporate.jeld-wen.com/newsroom/press-releases/2022/06-21-2022-145756008',
-                    ],
-                ],
-                'sections' => [
-                    [
-                        'title' => 'Product Overview',
-                        'summary' => 'JELD-WEN offers windows, patio doors, interior and exterior doors, wall systems, and related building products.',
-                        'points' => [
-                            'The brand markets a broad selection of wood, vinyl, and composite product options.',
-                            'Auraline True Composite is one of the newer composite window and patio door lines.',
-                            'Use JELD-WEN for a broad, builder-friendly windows and doors reference.',
-                        ],
-                    ],
-                    [
-                        'title' => 'Selling Points',
-                        'summary' => 'JELD-WEN leans on selection, energy efficiency, durability, and support.',
-                        'points' => [
-                            'The company positions itself as one of the world’s largest window and door manufacturers.',
-                            'Dealer and homeowner support is part of the brand story.',
-                            'The products are marketed as beautiful, built to last, and energy efficient.',
-                        ],
-                    ],
-                    [
-                        'title' => 'Specs & Drawings',
-                        'summary' => 'Technical documents, installation instructions, care and maintenance, and performance ratings live in the document library.',
-                        'points' => [
-                            'Use the documents library for installation and performance references.',
-                            'Keep the exact window or door line noted before pulling cut sheets.',
-                            'Use product literature for line-specific comparison work.',
-                        ],
-                    ],
-                    [
-                        'title' => 'Warranty & Compliance',
-                        'summary' => 'JELD-WEN publishes a current all-warranty guide plus product literature and historical support documents.',
-                        'points' => [
-                            'Use the all-warranty guide for current warranty language.',
-                            'Use the documents page for installation instructions, care and maintenance, and performance ratings.',
-                            'Confirm the exact line before stating warranty terms to a customer.',
-                        ],
-                    ],
-                    [
-                        'title' => 'Reference / FAQs',
-                        'summary' => 'The brand’s corporate pages provide product highlights, market support, and customer/service content.',
-                        'points' => [
-                            'Use the brands and products page for portfolio positioning.',
-                            'Use the about and markets pages for sales language and support context.',
-                            'Use the warranty guide and documents library when the rep needs claim or technical details.',
-                        ],
                     ],
                 ],
                 'sources' => [
@@ -1616,53 +2040,6 @@ HTML;
                         'url' => 'https://dallasflatglass.com/',
                     ],
                 ],
-                'sections' => [
-                    [
-                        'title' => 'Product Overview',
-                        'summary' => 'Dallas Flat Glass is a Carrollton-based glass wholesaler serving the DFW market with a broad range of custom and replacement glass products.',
-                        'points' => [
-                            'Publicly indexed descriptions highlight insulated glass, mirrors, pattern glass, specialty glass, low-E glass, laminated glass, fully tempered glass, heavy glass, monolithic glass, and custom beveled glass.',
-                            'The company is also associated with all-glass entrance systems and handrail-related glass products.',
-                            'Use this page as the internal reference for window glass, replacement glass, decorative glass, and custom fabrication sourcing.',
-                        ],
-                    ],
-                    [
-                        'title' => 'Selling Points',
-                        'summary' => 'The public descriptions emphasize breadth, fast turnaround, transparent ordering, and customer service.',
-                        'points' => [
-                            'Known for a wide selection of glass and glazing products.',
-                            'Frequently described as a wholesaler with competitive pricing and transparent ordering.',
-                            'Useful when reps need a Dallas-area glass sourcing reference for replacement and custom fabrication work.',
-                        ],
-                    ],
-                    [
-                        'title' => 'Specs & Drawings',
-                        'summary' => 'Use this section for glass specs, fabrication notes, and project drawings once the exact source files are added.',
-                        'points' => [
-                            'Track insulated glass, tempered, laminated, monolithic, low-E, pattern, and specialty product documentation here.',
-                            'Add fabrication drawings or project notes when available.',
-                            'Confirm the exact glass build and finish before quoting.',
-                        ],
-                    ],
-                    [
-                        'title' => 'Warranty & Compliance',
-                        'summary' => 'Dallas Flat Glass warranty information should be confirmed directly with the company before quoting.',
-                        'points' => [
-                            'Use project-specific or manufacturer-specific warranty language until direct warranty docs are added here.',
-                            'Confirm compliance details for tempered, laminated, or installed glass assemblies.',
-                            'Treat this as a working reference until the official docs are loaded.',
-                        ],
-                    ],
-                    [
-                        'title' => 'Reference / FAQs',
-                        'summary' => 'This section should capture ordering, lead time, and glass-type questions for the DFW team.',
-                        'points' => [
-                            'Add sourcing notes for common window, replacement-glass, and custom-fabrication jobs.',
-                            'Add any ordering or turnaround expectations after confirmation.',
-                            'Use this space for common glass-identification questions.',
-                        ],
-                    ],
-                ],
                 'sources' => [
                     'LinkedIn Company Profile' => 'https://www.linkedin.com/company/dallas-flat-glass-distributors',
                     'MapQuest Profile' => 'https://www.mapquest.com/us/texas/dallas-flat-glass-distributors-304386954',
@@ -1671,49 +2048,31 @@ HTML;
         ];
     }
 
-    protected function buildIndexPageHtml(string $bookName, string $pageName, string $summary): string
-    {
-        return $this->buildScaffoldPageHtml(
-            $bookName,
-            $pageName,
-            $summary,
-            [
-                [
-                    'title' => 'What Belongs Here',
-                    'summary' => 'Use this page to collect the documents that are easiest to lose.',
-                    'points' => [
-                        'Add the source files this page should point to.',
-                        'Add the file naming convention used by the team.',
-                        'Add the owner responsible for keeping it current.',
-                    ],
-                ],
-                [
-                    'title' => 'How to Organize It',
-                    'summary' => 'Keep the index scannable so reps can get to the right file quickly.',
-                    'points' => [
-                        'Group files by product family or manufacturer.',
-                        'Separate current files from archived files.',
-                        'Note any job-specific or project-specific exceptions.',
-                    ],
-                ],
-                [
-                    'title' => 'Still Missing',
-                    'summary' => 'Leave a clear place for gaps so the team knows what still needs to be added.',
-                    'points' => [
-                        'List the missing documents.',
-                        'Add a request owner or next action.',
-                        'Add the last confirmed source for the document.',
-                    ],
-                ],
-            ]
-        );
-    }
-
-    protected function buildScaffoldPageHtml(string $eyebrow, string $title, string $summary, array $sections): string
+    protected function buildScaffoldPageHtml(string $eyebrow, string $title, string $summary, array $sections, string $leadContent = ''): string
     {
         $eyebrow = e($eyebrow);
         $title = e($title);
         $summary = e($summary);
+        $sectionHtml = $this->renderScaffoldSections($sections);
+
+        return <<<HTML
+<div class="sotx-home">
+    <section class="sotx-panel sotx-card sotx-section-card">
+        <p class="sotx-kicker">{$eyebrow}</p>
+        <h1>{$title}</h1>
+        <p class="sotx-lede">{$summary}</p>
+    </section>
+    {$leadContent}
+    {$sectionHtml}
+</div>
+HTML;
+    }
+
+    protected function renderScaffoldSections(array $sections): string
+    {
+        if (empty($sections)) {
+            return '';
+        }
 
         $sectionHtml = '';
         foreach ($sections as $section) {
@@ -1734,10 +2093,8 @@ HTML;
 <section class="sotx-card sotx-mini-card sotx-template-block">
     <div class="sotx-card-top" style="align-items:center;">
         <div>
-            <p class="sotx-kicker" style="margin-bottom:.35rem;">Populate This Section</p>
             <h4>{$sectionTitle}</h4>
         </div>
-        <span class="sotx-flag">Draft</span>
     </div>
     <p class="sotx-note" style="margin-top:.65rem;">{$sectionSummary}</p>
     <ul class="sotx-template-list">
@@ -1748,87 +2105,11 @@ HTML;
         }
 
         return <<<HTML
-<div class="sotx-home">
-    <section class="sotx-panel sotx-card sotx-section-card">
-        <p class="sotx-kicker">{$eyebrow}</p>
-        <h1>{$title}</h1>
-        <p class="sotx-lede">{$summary}</p>
-        <div class="sotx-note" style="margin-top:.8rem;">This page is fully scaffolded. Replace the draft guidance with approved content when you are ready.</div>
-    </section>
-    <section class="sotx-section">
-        <div class="sotx-service-grid">
-            {$sectionHtml}
-        </div>
-    </section>
-</div>
-HTML;
-    }
-
-    protected function buildServiceSectionHtml(string $serviceName, string $sectionName, string $summary, string $details, array $productNames): string
-    {
-        $productsHtml = collect($productNames)->isNotEmpty()
-            ? '<div class="sotx-chip-list">' . collect($productNames)->map(fn (string $productName): string => '<span class="sotx-chip">' . e($productName) . '</span>')->implode('') . '</div>'
-            : '';
-
-        return $this->buildScaffoldPageHtml(
-            $serviceName,
-            $sectionName,
-            $summary,
-            [
-                [
-                    'title' => 'Products',
-                    'summary' => 'Brand-level product pages and what we carry.',
-                    'points' => [
-                        'List the approved brands for this category.',
-                        'Add the exact product lines or model names.',
-                        'Use the chips above as the first-pass product list.',
-                    ],
-                ],
-                [
-                    'title' => 'Specs & Drawings',
-                    'summary' => 'Technical docs, cut sheets, and architect files.',
-                    'points' => [
-                        'Link to the active spec sheets.',
-                        'Link to drawings or install details.',
-                        'Call out revision dates or source files.',
-                    ],
-                ],
-                [
-                    'title' => 'Warranty / Compliance',
-                    'summary' => 'Warranty notes, code concerns, and exceptions.',
-                    'points' => [
-                        'List warranty details and exclusions.',
-                        'Add any code or compliance cautions.',
-                        'Note whether approvals are required before quoting.',
-                    ],
-                ],
-                [
-                    'title' => 'Reference / FAQs',
-                    'summary' => 'Objection handling, measurements, and comparisons.',
-                    'points' => [
-                        'Capture common objections and the best responses.',
-                        'Add measurement and site-visit reminders.',
-                        'Add comparison notes for similar products.',
-                    ],
-                ],
-            ]
-        );
-    }
-
-    protected function buildProductsHtml(array $productNames): string
-    {
-        $items = collect($productNames)->map(function (string $productName): string {
-            return '<span class="sotx-chip">' . e($productName) . '</span>';
-        })->implode('');
-
-        return <<<HTML
-<div class="sotx-home">
-    <section class="sotx-panel sotx-card sotx-section-card">
-        <p class="sotx-kicker">What We Carry</p>
-        <p class="sotx-note">Use the linked product pages below to find the brand-level information for this category.</p>
-        <div class="sotx-chip-list">{$items}</div>
-    </section>
-</div>
+<section class="sotx-section">
+    <div class="sotx-service-grid">
+        {$sectionHtml}
+    </div>
+</section>
 HTML;
     }
 
@@ -1962,27 +2243,18 @@ HTML;
         $quickLinks = '';
         foreach ([
             ['book' => $books['Start Here'], 'label' => 'Start Here'],
-            ['book' => $books['Products'], 'label' => 'Products'],
-            ['book' => $books['Specs & Drawings'], 'label' => 'Specs & Drawings'],
-            ['book' => $books['Warranty / Compliance'], 'label' => 'Warranty / Compliance'],
-            ['book' => $books['Reference / FAQs'], 'label' => 'Reference / FAQs'],
+            ['book' => $books['Vendors'], 'label' => 'Vendors'],
         ] as $link) {
             $quickLinks .= '<a href="' . e($link['book']->getUrl()) . '" class="sotx-pill">' . e($link['label']) . '</a>';
         }
 
         $startHereBook = $books['Start Here'];
-        $productsBook = $books['Products'];
-        $specsBook = $books['Specs & Drawings'];
-        $warrantyBook = $books['Warranty / Compliance'];
-        $faqsBook = $books['Reference / FAQs'];
+        $vendorsBook = $books['Vendors'];
 
         $supportCards = '';
         foreach ([
             ['book' => $startHereBook, 'title' => 'Start Here', 'description' => 'Fast onboarding for new reps and a quick map of the hub.'],
-            ['book' => $productsBook, 'title' => 'Products', 'description' => 'Brand-level product pages and what we carry.'],
-            ['book' => $specsBook, 'title' => 'Specs & Drawings', 'description' => 'Technical docs, cut sheets, and architect files.'],
-            ['book' => $warrantyBook, 'title' => 'Warranty / Compliance', 'description' => 'Warranty notes, code concerns, and exceptions.'],
-            ['book' => $faqsBook, 'title' => 'Reference / FAQs', 'description' => 'Objection handling, measurements, and comparisons.'],
+            ['book' => $vendorsBook, 'title' => 'Vendors', 'description' => 'Brand-level vendor pages and what we carry.'],
         ] as $supportCard) {
             $supportCards .= <<<HTML
 <a href="{$supportCard['book']->getUrl()}" class="sotx-card sotx-mini-card">
@@ -2000,7 +2272,7 @@ HTML;
                 <p class="sotx-kicker">High Level</p>
                 <h1>Find the right answer fast.</h1>
                 <p class="sotx-lede" style="max-width:38rem;">
-                    Sales-ready access to the resources our team needs most: product lines, spec sheets, drawings, warranties, and field notes.
+                    Sales-ready access to the resources our team needs most: product lines, vendor context, and field notes.
                     Organized to match the Shades of Texas brand and the way our teams actually sell.
                 </p>
             </div>
@@ -2018,7 +2290,7 @@ HTML;
                 <span>&amp; Insured</span>
             </div>
             <div class="sotx-metric">
-                <strong>Products</strong>
+                <strong>Vendors</strong>
                 <span>Brands &amp; specs</span>
             </div>
             <div class="sotx-metric">
@@ -2052,7 +2324,7 @@ HTML;
             <li>Pick the service area first.</li>
             <li>Jump into the category that matches the customer’s need.</li>
             <li>Open the product page for the exact brand or line we carry.</li>
-            <li>Use specs, drawings, warranty, or FAQs when a deal needs more detail.</li>
+            <li>Use the vendor page and source map when a deal needs more detail.</li>
         </ol>
     </section>
 </div>
@@ -2067,7 +2339,7 @@ HTML;
                 'pages' => [
                     ['name' => 'Source of Truth', 'summary' => 'Master source map for brands, services, and reference documents.'],
                     ['name' => 'How to Use This Hub', 'summary' => 'Quick guide to navigating the knowledge base.'],
-                    ['name' => 'Where to Find Specs, Drawings, and Pricing', 'summary' => 'Explains where the technical documents and pricing references live.'],
+                    ['name' => 'Where to Find Product Info and Pricing', 'summary' => 'Explains where product details and pricing references live.'],
                     ['name' => 'How to Request Missing Documents', 'summary' => 'How to request a file or ask for a new reference page.'],
                 ],
             ],
@@ -2131,7 +2403,7 @@ HTML;
                     'Glass & Windows' => [
                         'description' => 'Commercial glass replacement, glazing, and storefront references.',
                         'pages' => [
-                            ['name' => 'Commercial Glazing', 'summary' => 'Storefront and glazing references.', 'details' => 'Use the four sections below for commercial glazing projects.', 'products' => ['Dallas Flat Glass', 'Ghost Glass', 'Jeld-Wen', 'CRL']],
+                            ['name' => 'Commercial Glazing', 'summary' => 'Storefront and glazing references.', 'details' => 'Use the four sections below for commercial glazing projects.', 'products' => ['Dallas Flat Glass', 'Ghost Glass', 'JELD-WEN', 'CRL']],
                         ],
                     ],
                     'Window Treatments' => [
@@ -2142,143 +2414,21 @@ HTML;
                     ],
                 ],
             ],
-            'Products' => [
+            'Vendors' => [
                 'description' => 'Manufacturer and product-line reference pages for the products Shades of Texas carries.',
                 'chapters' => [
-                    '3M' => [
-                        'description' => '3M product reference and sales support.',
-                        'pages' => [
-                            ['name' => '3M Product Overview', 'summary' => 'What we carry from 3M and where it fits.'],
-                            ['name' => '3M Selling Points', 'summary' => 'Primary reasons we sell 3M products.'],
-                            ['name' => '3M Specs & Drawings', 'summary' => 'Cut sheets and technical references for 3M items.'],
-                            ['name' => '3M Warranty & Compliance', 'summary' => 'Warranty notes and compliance considerations.'],
-                        ],
-                    ],
-                    'Hunter Douglas' => [
-                        'description' => 'Hunter Douglas product reference and sales support.',
-                        'pages' => [
-                            ['name' => 'Hunter Douglas Product Overview', 'summary' => 'What we carry from Hunter Douglas and where it fits.'],
-                            ['name' => 'Hunter Douglas Selling Points', 'summary' => 'Primary reasons we sell Hunter Douglas products.'],
-                            ['name' => 'Hunter Douglas Specs & Drawings', 'summary' => 'Cut sheets and technical references for Hunter Douglas items.'],
-                            ['name' => 'Hunter Douglas Warranty & Compliance', 'summary' => 'Warranty notes and compliance considerations.'],
-                        ],
-                    ],
-                    'Alta' => [
-                        'description' => 'Alta product reference and sales support.',
-                        'pages' => [
-                            ['name' => 'Alta Product Overview', 'summary' => 'What we carry from Alta and where it fits.'],
-                            ['name' => 'Alta Selling Points', 'summary' => 'Primary reasons we sell Alta products.'],
-                            ['name' => 'Alta Specs & Drawings', 'summary' => 'Cut sheets and technical references for Alta items.'],
-                            ['name' => 'Alta Warranty & Compliance', 'summary' => 'Warranty notes and compliance considerations.'],
-                        ],
-                    ],
-                    'Norman' => [
-                        'description' => 'Norman product reference and sales support.',
-                        'pages' => [
-                            ['name' => 'Norman Product Overview', 'summary' => 'What we carry from Norman and where it fits.'],
-                            ['name' => 'Norman Selling Points', 'summary' => 'Primary reasons we sell Norman products.'],
-                            ['name' => 'Norman Specs & Drawings', 'summary' => 'Cut sheets and technical references for Norman items.'],
-                            ['name' => 'Norman Warranty & Compliance', 'summary' => 'Warranty notes and compliance considerations.'],
-                        ],
-                    ],
-                    'Eclipse' => [
-                        'description' => 'Eclipse product reference and sales support.',
-                        'pages' => [
-                            ['name' => 'Eclipse Product Overview', 'summary' => 'What we carry from Eclipse and where it fits.'],
-                            ['name' => 'Eclipse Selling Points', 'summary' => 'Primary reasons we sell Eclipse products.'],
-                            ['name' => 'Eclipse Specs & Drawings', 'summary' => 'Cut sheets and technical references for Eclipse items.'],
-                            ['name' => 'Eclipse Warranty & Compliance', 'summary' => 'Warranty notes and compliance considerations.'],
-                        ],
-                    ],
-                    'SmartTint' => [
-                        'description' => 'SmartTint product reference and sales support.',
-                        'pages' => [
-                            ['name' => 'SmartTint Product Overview', 'summary' => 'What we carry from SmartTint and where it fits.'],
-                            ['name' => 'SmartTint Selling Points', 'summary' => 'Primary reasons we sell SmartTint products.'],
-                            ['name' => 'SmartTint Specs & Drawings', 'summary' => 'Cut sheets and technical references for SmartTint items.'],
-                            ['name' => 'SmartTint Warranty & Compliance', 'summary' => 'Warranty notes and compliance considerations.'],
-                        ],
-                    ],
-                    'Andersen' => [
-                        'description' => 'Andersen windows and doors product reference and sales support.',
-                        'pages' => [
-                            ['name' => 'Andersen Product Overview', 'summary' => 'What we carry from Andersen and where it fits.'],
-                            ['name' => 'Andersen Selling Points', 'summary' => 'Primary reasons we sell Andersen products.'],
-                            ['name' => 'Andersen Specs & Drawings', 'summary' => 'Cut sheets and technical references for Andersen items.'],
-                            ['name' => 'Andersen Warranty & Compliance', 'summary' => 'Warranty notes and compliance considerations.'],
-                        ],
-                    ],
-                    'Pella' => [
-                        'description' => 'Pella windows and doors product reference and sales support.',
-                        'pages' => [
-                            ['name' => 'Pella Product Overview', 'summary' => 'What we carry from Pella and where it fits.'],
-                            ['name' => 'Pella Selling Points', 'summary' => 'Primary reasons we sell Pella products.'],
-                            ['name' => 'Pella Specs & Drawings', 'summary' => 'Cut sheets and technical references for Pella items.'],
-                            ['name' => 'Pella Warranty & Compliance', 'summary' => 'Warranty notes and compliance considerations.'],
-                        ],
-                    ],
-                    'CRL' => [
-                        'description' => 'CRL product reference and sales support.',
-                        'pages' => [
-                            ['name' => 'CRL Product Overview', 'summary' => 'What we carry from CRL and where it fits.'],
-                            ['name' => 'CRL Selling Points', 'summary' => 'Primary reasons we sell CRL products.'],
-                            ['name' => 'CRL Specs & Drawings', 'summary' => 'Cut sheets and technical references for CRL items.'],
-                            ['name' => 'CRL Warranty & Compliance', 'summary' => 'Warranty notes and compliance considerations.'],
-                        ],
-                    ],
-                    'Dallas Flat Glass' => [
-                        'description' => 'Dallas Flat Glass product reference and sales support.',
-                        'pages' => [
-                            ['name' => 'Dallas Flat Glass Product Overview', 'summary' => 'What we carry from Dallas Flat Glass and where it fits.'],
-                            ['name' => 'Dallas Flat Glass Selling Points', 'summary' => 'Primary reasons we sell Dallas Flat Glass products.'],
-                            ['name' => 'Dallas Flat Glass Specs & Drawings', 'summary' => 'Cut sheets and technical references for Dallas Flat Glass items.'],
-                            ['name' => 'Dallas Flat Glass Warranty & Compliance', 'summary' => 'Warranty notes and compliance considerations.'],
-                        ],
-                    ],
-                    'Ghost Glass' => [
-                        'description' => 'Ghost Glass product reference and sales support.',
-                        'pages' => [
-                            ['name' => 'Ghost Glass Product Overview', 'summary' => 'What we carry from Ghost Glass and where it fits.'],
-                            ['name' => 'Ghost Glass Selling Points', 'summary' => 'Primary reasons we sell Ghost Glass products.'],
-                            ['name' => 'Ghost Glass Specs & Drawings', 'summary' => 'Cut sheets and technical references for Ghost Glass items.'],
-                            ['name' => 'Ghost Glass Warranty & Compliance', 'summary' => 'Warranty notes and compliance considerations.'],
-                        ],
-                    ],
-                    'Jeld-Wen' => [
-                        'description' => 'Jeld-Wen product reference and sales support.',
-                        'pages' => [
-                            ['name' => 'Jeld-Wen Product Overview', 'summary' => 'What we carry from Jeld-Wen and where it fits.'],
-                            ['name' => 'Jeld-Wen Selling Points', 'summary' => 'Primary reasons we sell Jeld-Wen products.'],
-                            ['name' => 'Jeld-Wen Specs & Drawings', 'summary' => 'Cut sheets and technical references for Jeld-Wen items.'],
-                            ['name' => 'Jeld-Wen Warranty & Compliance', 'summary' => 'Warranty notes and compliance considerations.'],
-                        ],
-                    ],
-                ],
-            ],
-            'Specs & Drawings' => [
-                'description' => 'Document-first library for technical files, grouped so reps can get to the right file quickly.',
-                'pages' => [
-                    ['name' => 'Spec Sheet Index', 'summary' => 'Landing page for product spec sheets.'],
-                    ['name' => 'Architect Drawing Index', 'summary' => 'Landing page for architect drawings and install references.'],
-                    ['name' => 'Install Diagram Index', 'summary' => 'Landing page for installation diagrams and reference sheets.'],
-                ],
-            ],
-            'Warranty / Compliance' => [
-                'description' => 'Warranty summaries, code notes, and the key limitations salespeople need to know.',
-                'pages' => [
-                    ['name' => 'Warranty Summary Index', 'summary' => 'Landing page for manufacturer warranty references.'],
-                    ['name' => 'Compliance Notes', 'summary' => 'Landing page for code, material, and project compliance notes.'],
-                    ['name' => 'Warranty Caveats', 'summary' => 'Landing page for common exclusions and edge cases.'],
-                ],
-            ],
-            'Reference / FAQs' => [
-                'description' => 'Sales support pages for common questions, objections, and field notes.',
-                'pages' => [
-                    ['name' => 'Sales Answers', 'summary' => 'Answers to common customer and prospect questions.'],
-                    ['name' => 'Measurement Notes', 'summary' => 'General notes about sizing and on-site measurement.'],
-                    ['name' => 'Installation Caveats', 'summary' => 'Important install constraints and reminders.'],
-                    ['name' => 'Product Comparisons', 'summary' => 'A place for side-by-side comparison notes.'],
-                    ['name' => 'Objection Handling', 'summary' => 'Helpful responses to common objections.'],
+                    '3M' => ['description' => '3M product reference and sales support.'],
+                    'Hunter Douglas' => ['description' => 'Hunter Douglas product reference and sales support.'],
+                    'Alta' => ['description' => 'Alta product reference and sales support.'],
+                    'Norman' => ['description' => 'Norman product reference and sales support.'],
+                    'Eclipse' => ['description' => 'Eclipse product reference and sales support.'],
+                    'SmartTint' => ['description' => 'SmartTint product reference and sales support.'],
+                    'Andersen' => ['description' => 'Andersen windows and doors product reference and sales support.'],
+                    'Pella' => ['description' => 'Pella windows and doors product reference and sales support.'],
+                    'CRL' => ['description' => 'CRL product reference and sales support.'],
+                    'Dallas Flat Glass' => ['description' => 'Dallas Flat Glass product reference and sales support.'],
+                    'Ghost Glass' => ['description' => 'Ghost Glass product reference and sales support.'],
+                    'JELD-WEN' => ['description' => 'JELD-WEN product reference and sales support.'],
                 ],
             ],
         ];

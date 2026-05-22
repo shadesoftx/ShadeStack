@@ -6,11 +6,11 @@ Use it first when you need to update brand pages, service pages, or the shared r
 
 1. Update this source map.
 2. Update the BookStack `Source of Truth` page.
-3. Update the brand pages in `Products`.
+3. Update the brand pages in `Vendors`.
 4. Update the service pages in `Residential` and `Commercial`.
 5. Finish with [`docs/readme.md`](readme.md) and [`docs/navigation.md`](navigation.md).
 
-Last updated: 2026-05-21
+Last updated: 2026-05-22
 
 ---
 
@@ -33,42 +33,52 @@ Each brand is organized into seven resource categories:
 ### 3M
 
 **Install Guide**
-- [Installer & Dealer Resources](https://www.3m.com/3M/en_US/post-factory-installation-us/resources/installers-and-dealers/)
-- [COSMO App — product bulletins, how-to videos, technical docs](https://www.3m.com/3M/en_US/post-factory-installation-us/resources/installers-and-dealers/)
+- [3M Window Films – Support](https://www.3m.com/3M/en_US/building-window-solutions-us/support/)
+- [Find a Dealer](https://www.3m.com/3M/en_US/building-window-solutions-us/support/find-a-dealer/)
+- [Window Film Simulator](https://www.3m.com/3M/en_US/building-window-solutions-us/support/window-film-simulator/)
 
 **Products**
 - [Building Window Solutions](https://www.3m.com/3M/en_US/building-window-solutions-us/)
+- [Home Window Solutions](https://www.3m.com/3M/en_US/home-window-solutions-us/)
 - [Window Films](https://www.3m.com/3M/en_US/graphics-signage-us/applications/windows-and-glass/window-films/)
-- [Home Window Film Resources](https://www.3m.com/3M/en_US/home-window-solutions-us/resources/)
+- [Resources](https://www.3m.com/3M/en_US/building-window-solutions-us/resources/)
 
 **Dealer Portal**
-- [Dealer Advantage Portal (login)](https://lsp.portal.relayware.com/)
-- [Dealer Academy Installer Training Hub](https://www.3m.com/3M/en_US/post-factory-installation-us/resources/installers-and-dealers/pro-shop-dealer/)
-- [Become a Dealer](https://www.3m.com/3M/en_US/automotive-window-solutions-us/resources/become-a-dealer/)
+- [Find a Dealer](https://www.3m.com/3M/en_US/building-window-solutions-us/support/find-a-dealer/)
+- [Contact Us](https://www.3m.com/3M/en_US/building-window-solutions-us/support/contact-us/)
+- [Resources](https://www.3m.com/3M/en_US/building-window-solutions-us/resources/)
 
 **Spec Sheets & BIM**
 - [Full 3M Window Film Spec Sheet Library — Window Works](https://windowworks.co/3m-resources/3m-technical-data-sheets/)
 - [Prestige Series Technical Data Sheet (PDF)](https://multimedia.3m.com/mws/media/1704917O/prestige-series.pdf)
-- [Safety Data Sheets (SDS)](https://www.3m.com/3M/en_US/sds-us/)
+- [Safety Data Sheets (SDS)](https://www.3m.com/3M/en_US/company-us/SDS-search/)
 
 **Samples & Swatches**
 - [Find a Dealer / Request Samples via local rep](https://www.3m.com/3M/en_US/building-window-solutions-us/support/find-a-dealer/)
 - *(Physical samples available through your 3M distributor rep — add contact below)*
 
 **Pricing**
-- Pricing accessed via Dealer Advantage Portal (login required)
-- [Distributor Locator — find your regional 3M distributor](https://www.3m.com/3M/en_US/post-factory-installation-us/resources/distributor-locator/)
+Pricing accessed via Dealer & Installer Resources (login required)
+Pricing is handled through authorized 3M window film dealers and local reps.
 
 **Training & Certification**
-- [3M Installer Training Program](https://www.3m.com/3M/en_US/post-factory-installation-us/resources/installer-training/)
-- [Preferred Installer Certification & Testing Dates](https://www.3m.com/3M/en_US/graphics-signage-us/resources/installer-training-testing/preferred-graphics-testing-dates/)
-- **Designations:** 3M Preferred Installer → 3M Certified Company → 3M Pro Shop Dealer
-- Certification earns listing on 3M's public Installer Locator — strong sales differentiator
+- [Building Window Solutions Resources](https://www.3m.com/3M/en_US/building-window-solutions-us/resources/)
+- [Home Window Solutions Resources](https://www.3m.com/3M/en_US/home-window-solutions-us/resources/)
+- [Find a Dealer](https://www.3m.com/3M/en_US/building-window-solutions-us/support/find-a-dealer/)
+- **Designations:** 3M Authorized Window Film Dealer → 3M Certified Dealer Installer
+- Certification and support are tied to the window film dealer network
 
 **General**
 - [Support](https://www.3m.com/3M/en_US/building-window-solutions-us/support/)
-- [Warranties](https://www.3m.com/3M/en_US/post-factory-installation-us/resources/warranties/)
+- [Support / FAQs](https://www.3m.com/3M/en_US/building-window-solutions-us/support/)
+- [Resources](https://www.3m.com/3M/en_US/building-window-solutions-us/resources/)
 - [Find a Dealer](https://www.3m.com/3M/en_US/building-window-solutions-us/support/find-a-dealer/)
+
+**FAQ**
+- [FAQs](https://www.3m.com/3M/en_US/building-window-solutions-us/support/)
+
+**Warranty Information**
+- [Warranty Information](https://multimedia.3m.com/mws/media/943121O/3m-window-film-commercial-product-information-form.pdf?fn=Commercial+Product+Information+Form.pdf)
 
 **Rep Contact**
 - Name:
@@ -117,6 +127,13 @@ Each brand is organized into seven resource categories:
 - [Support Center](https://help.hunterdouglas.com/hc/en-us)
 - [Warranty FAQs](https://help.hunterdouglas.com/hc/en-us/sections/39307695386772-Warranty-FAQs)
 
+**FAQ**
+- [FAQs](https://help.hunterdouglas.com/hc/en-us/categories/39191091693076-FAQs)
+- [Warranty FAQs](https://help.hunterdouglas.com/hc/en-us/sections/39307695386772-Warranty-FAQs)
+
+**Warranty Information**
+- [Warranty Information](https://help.hunterdouglas.com/hc/en-us/articles/39534899498516)
+
 **Rep Contact**
 - Name:
 - Phone:
@@ -137,7 +154,7 @@ Each brand is organized into seven resource categories:
 
 **Dealer Portal**
 - [Alta Dealer Resource Center](https://dealer.altawindowfashions.com/)
-- [Dealer Login](https://beta.altawindowfashions.com/dealer-login/)
+- [Dealer Login](https://www.altawindowfashions.com/dealer-login)
 - [Become a Dealer](https://www.altawindowfashions.com/become-a-dealer)
 - [Pinnacle Dealer Partner Program (Alta + Hunter Douglas — no fees to join)](https://dealer.altawindowfashions.com/)
 
@@ -163,6 +180,12 @@ Each brand is organized into seven resource categories:
 - [Resources](https://www.altawindowfashions.com/resources)
 - [Maintenance & Warranty](https://prod.altawindowfashions.com/en/maintenance-and-warranty)
 - [FAQs](https://www.altawindowfashions.com/faqs)
+
+**FAQ**
+- [FAQs](https://www.altawindowfashions.com/faqs)
+
+**Warranty Information**
+- [Warranty Information](https://prod.altawindowfashions.com/en/maintenance-and-warranty)
 
 **Rep Contact**
 - Name:
@@ -202,7 +225,14 @@ Each brand is organized into seven resource categories:
 
 **General**
 - [Home](https://normanusa.com/)
+- [FAQs](https://normanusa.com/window-treatments/beach-house-coastal-window-treatments/)
 - [Warranties](https://normanusa.com/warranties/)
+
+**FAQ**
+- [FAQs](https://normanusa.com/window-treatments/beach-house-coastal-window-treatments/)
+
+**Warranty Information**
+- [Warranty Information](https://normanusa.com/warranties/)
 
 **Rep Contact**
 - Name:
@@ -245,6 +275,14 @@ Each brand is organized into seven resource categories:
 
 **General**
 - [Home](https://www.eclipseawning.com/)
+- [Questions / Dealer Inquiries](https://eclipseshading.com/dealers/search/)
+
+**FAQ**
+- [Questions / Dealer Inquiries](https://eclipseshading.com/dealers/search/)
+
+**Warranty Information**
+- [Warranty Information](https://eclipseshading.com/the-eclipse-shading-systems%C2%AE-warranty/)
+- [Warranty PDF](https://eclipseshading.com/wp-content/uploads/Warranty-Information.pdf)
 
 **Rep Contact**
 - Name:
@@ -256,7 +294,7 @@ Each brand is organized into seven resource categories:
 ### SmartTint
 
 **Install Guide**
-- [How to Install (password-protected — request from project manager)](https://www.smarttint.com/how-to-install-smart-tint/)
+- [How to Install](https://www.smarttint.com/how-to-install-smart-tint/)
 - [Technical Data Sheet](https://www.smarttint.com/wp-content/uploads/2025/03/SmartTint-SmartCling-Technical-Data-Sheet-10th-Gen-v3-1.pdf)
 
 **Products**
@@ -287,6 +325,14 @@ Each brand is organized into seven resource categories:
 
 **General**
 - [Contact: (866) 249-3077 / info@smarttint.com](https://www.smarttint.com/)
+- [FAQs](https://www.smarttint.com/faq/)
+
+**FAQ**
+- [FAQs](https://www.smarttint.com/faq/)
+
+**Warranty Information**
+- [Warranty Information](https://www.smarttint.com/warranty/)
+- [Warranty Claim Form](https://www.smarttint.com/warranty-claim/)
 
 **Rep Contact**
 - Name:
@@ -336,8 +382,16 @@ Each brand is organized into seven resource categories:
 **General**
 - [Home](https://www.andersenwindows.com/)
 - [Support](https://www.andersenwindows.com/support/)
+- [FAQs](https://www.andersenwindows.com/support/faqs)
 - [Warranty](https://www.andersenwindows.com/support/warranty)
-- [Andersen Limited Warranties](https://helpcenter.andersenwindows.com/aw/articles/Knowledge/Andersen-Limited-Warranties)
+- [Andersen Limited Warranties](https://www.andersenwindows.com/support/warranty)
+
+**FAQ**
+- [FAQs](https://www.andersenwindows.com/support/faqs)
+
+**Warranty Information**
+- [Warranty Information](https://www.andersenwindows.com/support/warranty)
+- [Warranty Documents](https://www.andersenwindows.com/for-professionals/documents/warranty)
 
 **Rep Contact**
 - Name:
@@ -355,7 +409,7 @@ Each brand is organized into seven resource categories:
 **Products**
 - [Windows](https://www.pella.com/ideas/windows/)
 - [Pella Pro Dealer — Product Catalog](https://www.pellaprodealer.com/)
-- [Products by Pella](https://products.pella.com/)
+- [Doors by Pella](https://www.pella.com/ideas/doors/)
 
 **Dealer Portal**
 - [PellaPro Portal (login)](https://pellapro.pella.com/)
@@ -382,8 +436,16 @@ Each brand is organized into seven resource categories:
 
 **General**
 - [Home](https://www.pella.com/)
+- [FAQ](https://www.pella.com/support/faq/)
 - [Warranties](https://www.pella.com/support/warranties/)
 - [Support](https://www.pella.com/support/)
+
+**FAQ**
+- [FAQs](https://www.pella.com/support/faq/)
+
+**Warranty Information**
+- [Warranty Information](https://www.pella.com/support/warranties/)
+- [Historical Warranties](https://www.pella.com/support/warranties/historical/)
 
 **Rep Contact**
 - Name:
@@ -427,7 +489,14 @@ Each brand is organized into seven resource categories:
 **General**
 - [Home](https://www.crlaurence.com/)
 - [About Us](https://www.crlaurence.com/about-us)
+- [FAQs](https://www.crlaurence.com/faq)
 - [Customer Service: 1.800.421.6144](https://www.crlaurence.com/)
+
+**FAQ**
+- [FAQs](https://www.crlaurence.com/faq)
+
+**Warranty Information**
+- [Warranty Information](https://www.crlaurence.com/about-us/business-policies)
 
 **Rep Contact**
 - Name:
@@ -463,7 +532,14 @@ Each brand is organized into seven resource categories:
 
 **General**
 - [Home](https://dallasflatglass.com/)
+- [Questions / Contact](https://dallasflatglass.com/)
 - [LinkedIn](https://www.linkedin.com/company/dallas-flat-glass-distributors)
+
+**FAQ**
+- [Questions / Contact](https://dallasflatglass.com/)
+
+**Warranty Information**
+- No public warranty page found. Confirm warranty terms directly with Dallas Flat Glass before quoting.
 
 **Rep Contact**
 - Name:
@@ -476,7 +552,7 @@ Each brand is organized into seven resource categories:
 
 **Install Guide**
 - [DIY Installation Guide](https://ghostglassfilm.com/smart-film-diy)
-- [How to Install Page](https://ghostglassfilm.com/install)
+- [How to Install Page](https://ghostglassfilm.com/smart-film-installation-guide)
 - [Installation Instructions (included with product)](https://ghostglassfilm.com/products/p/diy-pdlc-film)
 
 **Products**
@@ -485,8 +561,8 @@ Each brand is organized into seven resource categories:
 - [Ghost Glass in Texas](https://ghostglassfilm.com/ghost-glass-film-in-texas)
 
 **Dealer Portal**
-- [Wholesale / Installer Partner Program](https://ghostglassfilm.com/install)
-- [Become a Certified Ghost Glass Installer](https://ghostglassfilm.com/install)
+- [About Ghost Glass / Contact](https://ghostglassfilm.com/about-us)
+- *(No self-serve dealer portal — wholesale and installer access are handled directly.)*
 
 **Spec Sheets & BIM**
 - [Technical Data Sheet — DIY PDLC Film](https://ghostglassfilm.com/products/p/diy-pdlc-film)
@@ -502,14 +578,21 @@ Each brand is organized into seven resource categories:
 - [Contact for wholesale quote](https://ghostglassfilm.com/pdlc-privacy-film)
 
 **Training & Certification**
-- [Ghost Glass Certified Installer Program](https://ghostglassfilm.com/install)
+- [Installation Guide and Support](https://ghostglassfilm.com/smart-film-installation-guide)
 - Training covers installation techniques; certified installers receive discounted pricing and are listed on Ghost Glass website as official installers
 - Dedicated engineering support with every order
 
 **General**
 - [Home](https://ghostglassfilm.com/)
 - [About Us](https://ghostglassfilm.com/about-us)
+- [FAQs](https://ghostglassfilm.com/faqs-1)
 - [Installations Gallery](https://ghostglassfilm.com/installations)
+
+**FAQ**
+- [FAQs](https://ghostglassfilm.com/faqs-1)
+
+**Warranty Information**
+- [Warranty Information](https://ghostglassfilm.com/warrantyanddisclaimers)
 
 **Rep Contact**
 - Name:
@@ -529,8 +612,8 @@ Each brand is organized into seven resource categories:
 - [Full Product Line](https://www.jeld-wen.com/en-us/)
 
 **Dealer Portal**
-- [JELD-WEN Partners Portal](http://PartnersPortal.JELD-WEN.net)
-- [Dealer Self-Service Login](https://jeldwenorg3--fslqa.sandbox.my.site.com/login?locale=us)
+- [Find a JELD-WEN Dealer Near You](https://locations.jeld-wen.com/)
+- [Dealer Self-Service Login](https://jeldwenorg3.my.site.com/login?locale=us)
 - [Pro Sign In](https://www.jeld-wen.com/en-us/)
 
 **Spec Sheets & BIM**
@@ -543,18 +626,25 @@ Each brand is organized into seven resource categories:
 - Add rep contact below
 
 **Pricing**
-- Pricing via JELD-WEN Partners Portal (dealer login required)
-- Quick Quote software available through Partners Portal for accurate job quoting
+- Pricing via dealer login / account access (dealer login required)
+- Quick Quote software available through dealer account access for accurate job quoting
 
 **Training & Certification**
-- Online training modules and webinars via Partners Portal
+- Online training modules and webinars via dealer account access
 - CEU courses available for architects
 - Contact your JELD-WEN rep for training access
 
 **General**
 - [Home](https://www.jeld-wen.com/en-us/)
+- [FAQ](https://brandstore.jeld-wen.com/customer-service/faq/)
 - [Warranty Guide](https://www.jeld-wen.com/en-us/all-warranty-guide)
 - [Support](https://www.jeld-wen.com/en-us/)
+
+**FAQ**
+- [FAQs](https://brandstore.jeld-wen.com/customer-service/faq/)
+
+**Warranty Information**
+- [Warranty Information](https://www.jeld-wen.com/en-us/all-warranty-guide)
 
 **Rep Contact**
 - Name:
@@ -582,6 +672,7 @@ Each brand is organized into seven resource categories:
 ## Internal Docs
 
 - [`docs/readme.md`](readme.md)
+- [`docs/products.md`](products.md)
 - [`docs/navigation.md`](navigation.md)
 
 ---
