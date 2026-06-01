@@ -14,6 +14,7 @@ use BookStack\Permissions\Permission;
 use BookStack\Users\Models\Role;
 use BookStack\Users\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\URL;
 
 class ShadesOfTexasStructureSeeder extends Seeder
 {
@@ -32,6 +33,7 @@ class ShadesOfTexasStructureSeeder extends Seeder
             'owned_by'   => $ownerId,
         ];
 
+        URL::forceRootUrl(config('app.url'));
         $this->applyBrandSettings();
         $this->grantTeamReadAccess();
         $this->resetExistingStructure();
@@ -178,6 +180,49 @@ class ShadesOfTexasStructureSeeder extends Seeder
             }
         }
 
+        $systemIndexPriority = ++$startHerePageCounters;
+        $systemCategoryPages = [];
+        foreach ($this->systemCategories() as $systemCategory) {
+            $startHerePageCounters++;
+            $systemCategoryPages[$systemCategory['name']] = $this->createPage(
+                $createdBooks['Start Here'],
+                null,
+                $systemCategory['name'],
+                $systemCategory['summary'],
+                $byData,
+                $this->buildSystemCategoryPageHtml(
+                    $systemCategory,
+                    $createdPages,
+                    $createdProductPages
+                ),
+                $startHerePageCounters
+            );
+        }
+
+        $createdPages['Start Here'][null]['System Categories'] = $this->createPage(
+            $createdBooks['Start Here'],
+            null,
+            'System Categories',
+            'Customer-need navigation layer that routes into service categories and vendor/product pages.',
+            $byData,
+            $this->buildSystemCategoriesPageHtml($systemCategoryPages),
+            $systemIndexPriority
+        );
+
+        foreach ($systemCategoryPages as $pageName => $page) {
+            $createdPages['Start Here'][null][$pageName] = $page;
+        }
+
+        $createdPages['Start Here'][null]['Start Here'] = $this->createPage(
+            $createdBooks['Start Here'],
+            null,
+            'Start Here',
+            'Task-based landing page for sales consultants and internal users.',
+            $byData,
+            $this->buildStartHereTaskPageHtml($createdBooks, $createdPages, $createdProductPages),
+            0
+        );
+
         $homePage = $this->createPage(
             $createdBooks['Start Here'],
             null,
@@ -226,14 +271,18 @@ class ShadesOfTexasStructureSeeder extends Seeder
 <style>
 :root {
     --sotx-navy: #171B2A;
-    --sotx-orange: #FF5A3C;
-    --sotx-bg: #f6f4ef;
+    --sotx-orange: #D94D2B;
+    --sotx-blue: #0A6E9F;
+    --sotx-bg: #f7f8fa;
     --sotx-surface: #ffffff;
-    --sotx-surface-alt: #faf8f4;
-    --sotx-border: rgba(23, 27, 42, 0.10);
+    --sotx-surface-alt: #f1f4f7;
+    --sotx-border: rgba(23, 27, 42, 0.12);
+    --sotx-border-strong: rgba(23, 27, 42, 0.22);
     --sotx-text: #171B2A;
-    --sotx-muted: #5f6474;
-    --sotx-soft: rgba(255, 90, 60, 0.10);
+    --sotx-muted: #5c6575;
+    --sotx-soft: rgba(10, 110, 159, 0.08);
+    --sotx-focus: rgba(10, 110, 159, 0.28);
+    --sotx-radius: 8px;
 }
 
 html.dark-mode {
@@ -241,9 +290,11 @@ html.dark-mode {
     --sotx-surface: #171B2A;
     --sotx-surface-alt: #1d2233;
     --sotx-border: rgba(255, 255, 255, 0.10);
+    --sotx-border-strong: rgba(255, 255, 255, 0.22);
     --sotx-text: #f5f7fb;
     --sotx-muted: #a7afc1;
     --sotx-soft: rgba(255, 90, 60, 0.14);
+    --sotx-focus: rgba(255, 90, 60, 0.30);
 }
 
 .sotx-homepage .tri-layout-middle-contents,
@@ -256,6 +307,11 @@ html.dark-mode {
     margin: 0 auto;
     padding: clamp(1rem, 2vw, 1.5rem);
     color: var(--sotx-text);
+    background: var(--sotx-bg);
+}
+
+.sotx-home * {
+    box-sizing: border-box;
 }
 
 .sotx-panel,
@@ -263,24 +319,28 @@ html.dark-mode {
 .sotx-mini-card {
     background: var(--sotx-surface);
     border: 1px solid var(--sotx-border);
-    border-radius: 1.25rem;
-    box-shadow: 0 .75rem 1.6rem rgba(23, 27, 42, 0.05);
+    border-radius: var(--sotx-radius);
 }
 
 .sotx-hero {
     display: grid;
-    grid-template-columns: minmax(0, 1.6fr) minmax(16rem, 0.95fr);
-    gap: 1rem;
-    padding: clamp(1.2rem, 2.5vw, 2rem);
-    background: linear-gradient(180deg, var(--sotx-surface) 0%, var(--sotx-surface-alt) 100%);
+    grid-template-columns: minmax(0, 1.45fr) minmax(17rem, .9fr);
+    gap: 1.1rem;
+    padding: clamp(1rem, 2vw, 1.45rem);
+    background: var(--sotx-surface);
+    border-left: 4px solid var(--sotx-blue);
+}
+
+.sotx-hero .sotx-lede {
+    font-size: 1rem;
 }
 
 .sotx-kicker {
-    margin: 0 0 .55rem;
-    color: var(--sotx-orange);
+    margin: 0 0 .45rem;
+    color: var(--sotx-blue);
     text-transform: uppercase;
-    letter-spacing: .16em;
-    font-size: .72rem;
+    letter-spacing: 0;
+    font-size: .76rem;
     font-weight: 900;
 }
 
@@ -294,9 +354,9 @@ html.dark-mode {
 }
 
 .sotx-hero h1 {
-    font-size: clamp(2rem, 4vw, 3.35rem);
-    line-height: 1;
-    letter-spacing: -0.03em;
+    font-size: clamp(1.85rem, 3vw, 2.75rem);
+    line-height: 1.06;
+    letter-spacing: 0;
 }
 
 .sotx-lede,
@@ -305,7 +365,7 @@ html.dark-mode {
 .sotx-section p,
 .sotx-note {
     color: var(--sotx-muted);
-    line-height: 1.7;
+    line-height: 1.55;
 }
 
 .sotx-hero-copy {
@@ -318,33 +378,51 @@ html.dark-mode {
 .sotx-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: .6rem;
+    gap: .5rem;
 }
 
 .sotx-pill {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: .72rem 1rem;
-    border-radius: 999px;
-    background: var(--sotx-orange);
-    color: #fff;
+    min-height: 2.5rem;
+    padding: .62rem .9rem;
+    border-radius: var(--sotx-radius);
+    background: var(--sotx-navy);
+    border: 1px solid var(--sotx-navy);
+    color: #fff !important;
     text-decoration: none;
     font-weight: 900;
-    box-shadow: 0 .7rem 1.3rem rgba(255, 90, 60, .22);
+    line-height: 1.15;
+    text-align: center;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.sotx-pill:hover {
+    background: var(--sotx-orange);
+    border-color: var(--sotx-orange);
+    text-decoration: none;
+}
+
+.sotx-pill:focus-visible,
+.sotx-card:focus-visible,
+.sotx-chip-link:focus-visible {
+    outline: 3px solid var(--sotx-focus);
+    outline-offset: 2px;
 }
 
 .sotx-stats {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: .75rem;
+    gap: .6rem;
 }
 
 .sotx-metric {
-    padding: .95rem 1rem;
-    border-radius: 1rem;
+    padding: .82rem .9rem;
+    border-radius: var(--sotx-radius);
     background: var(--sotx-soft);
-    border: 1px solid rgba(255, 90, 60, .14);
+    border: 1px solid rgba(10, 110, 159, .13);
+    min-height: 4.15rem;
 }
 
 .sotx-metric strong,
@@ -353,17 +431,17 @@ html.dark-mode {
 }
 
 .sotx-metric strong {
-    font-size: 1.12rem;
+    font-size: 1rem;
     color: var(--sotx-text);
 }
 
 .sotx-metric span {
     margin-top: .15rem;
-    font-size: .92rem;
+    font-size: .88rem;
 }
 
 .sotx-section {
-    margin-top: 1.15rem;
+    margin-top: 1.1rem;
 }
 
 .sotx-section-head {
@@ -376,15 +454,15 @@ html.dark-mode {
 }
 
 .sotx-section h2 {
-    font-size: clamp(1.35rem, 2vw, 1.7rem);
-    letter-spacing: -0.02em;
+    font-size: clamp(1.18rem, 1.6vw, 1.45rem);
+    letter-spacing: 0;
 }
 
 .sotx-service-grid,
 .sotx-resource-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-    gap: .9rem;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: .7rem;
 }
 
 .sotx-card,
@@ -392,18 +470,19 @@ html.dark-mode {
 .sotx-service-card,
 .sotx-link-card {
     display: block;
-    padding: 1rem;
+    padding: .9rem;
     text-decoration: none;
     color: var(--sotx-text);
-    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+    min-width: 0;
+    transition: border-color .15s ease, background-color .15s ease, color .15s ease;
 }
 
 .sotx-service-card:hover,
 .sotx-link-card:hover,
 .sotx-mini-card:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 1rem 1.9rem rgba(23, 27, 42, .08);
-    border-color: rgba(255, 90, 60, .22);
+    background: linear-gradient(180deg, var(--sotx-surface) 0%, var(--sotx-surface-alt) 100%);
+    border-color: rgba(10, 110, 159, .35);
+    text-decoration: none;
 }
 
 .sotx-card-top {
@@ -413,18 +492,121 @@ html.dark-mode {
     gap: .75rem;
 }
 
+.sotx-card h3,
+.sotx-card h4,
+.sotx-mini-card h4 {
+    line-height: 1.2;
+}
+
+.sotx-card p,
+.sotx-mini-card p {
+    margin-top: .45rem;
+}
+
 .sotx-flag {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: .28rem .5rem;
-    border-radius: 999px;
-    background: rgba(23, 27, 42, .95);
-    color: #fff;
-    font-size: .68rem;
+    flex: 0 0 auto;
+    padding: .22rem .42rem;
+    border-radius: 6px;
+    background: rgba(23, 27, 42, .08);
+    color: var(--sotx-text);
+    font-size: .66rem;
     font-weight: 900;
-    letter-spacing: .08em;
+    letter-spacing: 0;
     text-transform: uppercase;
+}
+
+.sotx-status-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    margin-top: .65rem;
+}
+
+.sotx-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: .22rem .44rem;
+    border-radius: 6px;
+    background: rgba(23, 27, 42, .07);
+    color: var(--sotx-text);
+    font-size: .72rem;
+    font-weight: 900;
+    border: 1px solid transparent;
+}
+
+.sotx-status-audited {
+    background: rgba(28, 132, 78, .13);
+    border-color: rgba(28, 132, 78, .18);
+    color: #16633d;
+}
+
+.sotx-status-login {
+    background: rgba(18, 96, 136, .13);
+    border-color: rgba(18, 96, 136, .18);
+    color: #135979;
+}
+
+.sotx-status-pending,
+.sotx-status-rep {
+    background: rgba(180, 113, 16, .16);
+    border-color: rgba(180, 113, 16, .20);
+    color: #7a4c05;
+}
+
+.sotx-status-broken {
+    background: rgba(185, 43, 39, .14);
+    border-color: rgba(185, 43, 39, .18);
+    color: #8a1f1d;
+}
+
+.sotx-task-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .7rem;
+}
+
+.sotx-task-card {
+    position: relative;
+    min-height: 8.25rem;
+    border-left: 3px solid var(--sotx-blue);
+    padding-right: 2rem;
+}
+
+.sotx-task-card::after {
+    content: ">";
+    position: absolute;
+    right: .85rem;
+    bottom: .72rem;
+    color: var(--sotx-blue);
+    font-weight: 900;
+    line-height: 1;
+}
+
+.sotx-task-card:hover {
+    border-left-color: var(--sotx-orange);
+}
+
+.sotx-task-card:hover::after {
+    color: var(--sotx-orange);
+}
+
+.sotx-task-card strong {
+    display: block;
+    color: var(--sotx-text);
+    font-size: 1rem;
+    line-height: 1.25;
+}
+
+.sotx-task-card span {
+    display: block;
+    margin-top: .4rem;
+    color: var(--sotx-muted);
+    line-height: 1.38;
+    font-size: .9rem;
 }
 
 .sotx-chip-list {
@@ -437,14 +619,18 @@ html.dark-mode {
 .sotx-chip {
     display: inline-flex;
     align-items: center;
-    padding: .34rem .55rem;
-    border-radius: 999px;
+    padding: .3rem .5rem;
+    border-radius: 6px;
     background: var(--sotx-surface-alt);
     border: 1px solid var(--sotx-border);
     color: var(--sotx-text);
     font-size: .74rem;
     font-weight: 800;
     line-height: 1.2;
+}
+
+.sotx-chip-link {
+    border-color: var(--sotx-border-strong);
 }
 
 .sotx-chip-link {
@@ -457,18 +643,7 @@ html.dark-mode {
 }
 
 .sotx-section-card {
-    padding: 1.15rem;
-}
-
-.sotx-guide {
-    padding: 1.15rem;
-}
-
-.sotx-guide ol {
-    margin: 0;
-    padding-left: 1.2rem;
-    color: var(--sotx-muted);
-    line-height: 1.75;
+    padding: 1rem;
 }
 
 .sotx-template-block {
@@ -487,8 +662,18 @@ html.dark-mode {
 }
 
 @media (max-width: 860px) {
+    .sotx-home {
+        padding: .85rem;
+    }
+
     .sotx-hero {
         grid-template-columns: 1fr;
+    }
+
+    .sotx-task-grid,
+    .sotx-service-grid,
+    .sotx-resource-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .sotx-stats {
@@ -497,6 +682,43 @@ html.dark-mode {
 }
 
 @media (max-width: 560px) {
+    .sotx-home {
+        padding: .6rem;
+    }
+
+    .sotx-hero {
+        padding: .9rem;
+        border-left-width: 3px;
+    }
+
+    .sotx-hero h1 {
+        font-size: 1.75rem;
+    }
+
+    .sotx-section-head,
+    .sotx-card-top {
+        align-items: flex-start;
+    }
+
+    .sotx-actions,
+    .sotx-actions .sotx-pill {
+        width: 100%;
+    }
+
+    .sotx-pill {
+        justify-content: flex-start;
+    }
+
+    .sotx-task-grid,
+    .sotx-service-grid,
+    .sotx-resource-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .sotx-task-card {
+        min-height: auto;
+    }
+
     .sotx-stats {
         grid-template-columns: 1fr;
     }
@@ -615,6 +837,105 @@ HTML;
 HTML;
     }
 
+    protected function buildStartHereTaskPageHtml(array $books, array $pagesByBook, array $vendorPages): string
+    {
+        $systemCategoriesUrl = $this->findPageUrl($pagesByBook, 'Start Here', null, 'System Categories') ?? ($books['Start Here']?->getUrl() ?? '#');
+        $warrantyUrl = $this->findPageUrl($pagesByBook, 'Start Here', null, 'Where to Find Product Info and Pricing') ?? ($books['Vendors']?->getUrl() ?? '#');
+        $requestUpdateUrl = $this->findPageUrl($pagesByBook, 'Start Here', null, 'How to Request Missing Documents') ?? ($books['Start Here']?->getUrl() ?? '#');
+        $vendorsUrl = $books['Vendors']?->getUrl() ?? '#';
+        $residentialUrl = $books['Residential']?->getUrl() ?? '#';
+        $commercialUrl = $books['Commercial']?->getUrl() ?? '#';
+        $hunterDouglasUrl = $vendorPages['Hunter Douglas']?->getUrl() ?? $vendorsUrl;
+        $eclipseUrl = $vendorPages['Eclipse']?->getUrl() ?? $vendorsUrl;
+
+        $tasks = [
+            ['title' => 'Find Product', 'summary' => 'Start with customer need, then choose the product or vendor line.', 'url' => $systemCategoriesUrl, 'flag' => 'Start'],
+            ['title' => 'Check Warranty', 'summary' => 'Open vendor warranty paths before using coverage as a selling point.', 'url' => $warrantyUrl, 'flag' => 'Verify'],
+            ['title' => 'Get Specs', 'summary' => 'Use vendor/product source pages for specs, drawings, tech data, and BIM.', 'url' => $vendorsUrl, 'flag' => 'Source'],
+            ['title' => 'Install Guide', 'summary' => 'Jump to vendor install and training resources before advising on field details.', 'url' => $vendorsUrl, 'flag' => 'Install'],
+            ['title' => 'Brochure / Collateral', 'summary' => 'Use current vendor collateral for customer-facing support material.', 'url' => $eclipseUrl, 'flag' => 'Sales'],
+            ['title' => 'Pricing / Portal', 'summary' => 'Use dealer portals or rep-confirmed paths. Credentials stay in 1Password.', 'url' => $hunterDouglasUrl, 'flag' => 'Login'],
+            ['title' => 'Rep Contact', 'summary' => 'Find the vendor contact path when a deal needs support or confirmation.', 'url' => $vendorsUrl, 'flag' => 'Help'],
+            ['title' => 'Request Update', 'summary' => 'Report stale links, missing files, unclear warranty, or bad product fit.', 'url' => $requestUpdateUrl, 'flag' => 'Fix'],
+        ];
+
+        $taskCards = '';
+        foreach ($tasks as $task) {
+            $taskCards .= <<<HTML
+<a href="{$task['url']}" class="sotx-card sotx-link-card sotx-task-card">
+    <div class="sotx-card-top">
+        <strong>{$task['title']}</strong>
+        <span class="sotx-flag">{$task['flag']}</span>
+    </div>
+    <span>{$task['summary']}</span>
+</a>
+HTML;
+        }
+
+        $laneCards = <<<HTML
+<a href="{$residentialUrl}" class="sotx-card sotx-mini-card">
+    <h4>Residential</h4>
+    <p>Homeowner categories, sales context, and product/vendor routes.</p>
+</a>
+<a href="{$commercialUrl}" class="sotx-card sotx-mini-card">
+    <h4>Commercial</h4>
+    <p>Business, storefront, facility, and commercial project categories.</p>
+</a>
+<a href="{$vendorsUrl}" class="sotx-card sotx-mini-card">
+    <h4>Vendors</h4>
+    <p>Canonical source pages for contacts, portals, specs, warranties, training, and collateral.</p>
+</a>
+HTML;
+
+        return <<<HTML
+<div class="sotx-home">
+    <section class="sotx-panel sotx-hero">
+        <div class="sotx-hero-copy">
+            <div>
+                <p class="sotx-kicker">Start Here</p>
+                <h1>What do you need right now?</h1>
+                <p class="sotx-lede" style="max-width:42rem;">
+                    Pick the task that matches the sales conversation. The buttons route you to the right category or vendor source without making you read the map first.
+                </p>
+            </div>
+        </div>
+        <div class="sotx-stats">
+            <div class="sotx-metric">
+                <strong>Fast</strong>
+                <span>Task-first lookup</span>
+            </div>
+            <div class="sotx-metric">
+                <strong>Trusted</strong>
+                <span>Vendor source pages</span>
+            </div>
+            <div class="sotx-metric">
+                <strong>Current</strong>
+                <span>Status-tagged resources</span>
+            </div>
+            <div class="sotx-metric">
+                <strong>Clear</strong>
+                <span>One owner per fact</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="sotx-section">
+        <div class="sotx-task-grid">{$taskCards}</div>
+    </section>
+
+    <section class="sotx-section">
+        <div class="sotx-section-head">
+            <div>
+                <h2>Browse By Lane</h2>
+                <p class="sotx-note" style="margin:.35rem 0 0;">Use these if you already know the project type or vendor.</p>
+            </div>
+        </div>
+        <div class="sotx-resource-grid">{$laneCards}</div>
+    </section>
+</div>
+HTML;
+    }
+
     protected function buildStartHerePageHtml(string $pageName, string $summary, array $books = []): string
     {
         if ($pageName === 'Source of Truth') {
@@ -637,6 +958,7 @@ HTML;
                         'title' => 'Pick the Right Lane',
                         'summary' => 'Start with the book that matches the kind of answer you need.',
                         'points' => [
+                            ['html' => '<strong>System Categories</strong> under Start Here are the customer-need layer: Climate Control, Privacy Control, Patio Extension, Security and Safety, and Home Automation &amp; Control.'],
                             ['html' => $vendorLink . ' is where vendor overviews, product pages, warranty links, FAQ links, and official source links live.'],
                             ['html' => $residentialLink . ' is where homeowner-facing service categories live: tint and film, window treatments, outdoor living, and glass work.'],
                             ['html' => $commercialLink . ' is where business-facing service categories live: commercial film, patio systems, glazing, and commercial treatments.'],
@@ -647,6 +969,7 @@ HTML;
                         'title' => 'Common Lookup Paths',
                         'summary' => 'Use these paths when you need an answer quickly during sales or support work.',
                         'points' => [
+                            ['html' => '<strong>Customer describes an outcome:</strong> open <strong>System Categories</strong>, choose the need, then follow the internal links to a sales category or vendor/product page.'],
                             ['html' => '<strong>Customer asks what we carry:</strong> open ' . $vendorLink . ', pick the vendor, then open the exact product page.'],
                             ['html' => '<strong>Customer asks about warranty:</strong> open the vendor page and use the <strong>Warranty Information</strong> section before quoting coverage.'],
                             ['html' => '<strong>Customer asks a practical product question:</strong> open the product page first, then use the vendor <strong>FAQs</strong> section if the product page does not answer it.'],
@@ -657,6 +980,7 @@ HTML;
                         'title' => 'When to Slow Down',
                         'summary' => 'Some answers need verification before they go to a customer.',
                         'points' => [
+                            'Do not duplicate specs, warranties, contacts, dealer portals, install guides, or collateral on routing pages.',
                             'Do not promise warranty coverage without checking the exact product line, install conditions, and purchase date.',
                             'Do not use a vendor homepage as proof of warranty terms unless the vendor does not publish a public warranty page and the page says to confirm directly.',
                             'If a link looks stale, use Source of Truth to find the official vendor path and update the vendor page afterward.',
@@ -759,10 +1083,27 @@ HTML;
     {
         $quickLinks = $this->buildStartHereBookLinks($books);
         $brandPoints = [];
-        foreach ($this->sourceRegistry()['brands'] as $brandName => $brandConfig) {
+        $parsedSourceBrands = $this->parsedSourceMarkdownBrands();
+        $sourceBrands = array_unique(array_merge(
+            array_keys($this->sourceRegistry()['brands']),
+            array_keys($parsedSourceBrands)
+        ));
+        foreach ($sourceBrands as $brandName) {
+            $brandConfig = $this->sourceRegistry()['brands'][$brandName] ?? [
+                'summary' => 'Vendor source inventory is pending official link confirmation.',
+                'links' => [],
+            ];
             $links = '';
-            foreach ($brandConfig['links'] as $link) {
+            foreach (($brandConfig['links'] ?? []) as $link) {
                 $links .= '<a href="' . e($link['url']) . '" target="_blank" rel="noreferrer">' . e($link['label']) . '</a> ';
+            }
+            if ($links === '') {
+                foreach ($this->extractSourceMarkdownLinks($parsedSourceBrands[$brandName] ?? []) as $link) {
+                    $links .= '<a href="' . e($link['url']) . '" target="_blank" rel="noreferrer">' . e($link['label']) . '</a> ';
+                }
+            }
+            if ($links === '') {
+                $links = '<span>Pending official source link confirmation.</span>';
             }
 
             $brandPoints[] = [
@@ -786,9 +1127,19 @@ HTML;
                     'title' => 'Read This First',
                     'summary' => 'Use this page when you need to verify where vendor information came from.',
                     'points' => [
+                        'Use System Categories when the customer describes a need or outcome instead of naming a product.',
                         'Use the vendor page first during normal sales lookup.',
                         'Use this page when a vendor link breaks, a customer asks for proof, or two pages disagree.',
                         'After a source changes, update the vendor page and any affected service pages so the hub stays consistent.',
+                    ],
+                ],
+                [
+                    'title' => 'Navigation Model',
+                    'summary' => 'This is the path the hub is built around.',
+                    'points' => [
+                        'Customer Need -> System Category -> Residential/Commercial Category -> Product/Vendor Page -> Official Source',
+                        'System and service pages route the team to the right place.',
+                        'Vendor and product pages own the facts that change over time.',
                     ],
                 ],
                 [
@@ -844,6 +1195,13 @@ HTML
         }
 
         return implode('', $links);
+    }
+
+    protected function findPageUrl(array $pagesByBook, string $bookName, ?string $chapterName, string $pageName): ?string
+    {
+        $page = $pagesByBook[$bookName][$chapterName][$pageName] ?? null;
+
+        return $page instanceof Page ? $page->getUrl() : null;
     }
 
     protected function buildBookLinkHtml(array $books, string $bookName, ?string $label = null): string
@@ -1053,36 +1411,56 @@ HTML
             ],
             'services' => [
                 'Residential / Tint & Film' => [
-                    'summary' => '3M and SmartTint drive the tint and film reference pages.',
-                    'sources' => ['3M', 'SmartTint'],
+                    'summary' => 'Film vendors and distributors drive solar, privacy, safety, and decorative film pages.',
+                    'sources' => ['Accent', '3M', 'Sunbelt', 'Avery Dennison', 'Decorative Films', 'SolX', 'Frost', 'SmartTint'],
                 ],
                 'Residential / Window Treatments' => [
-                    'summary' => 'Hunter Douglas, Alta, and Norman drive the treatment pages.',
-                    'sources' => ['Hunter Douglas', 'Alta', 'Norman'],
+                    'summary' => 'Shade, blind, shutter, motorization, and safety shutter vendors drive treatment pages.',
+                    'sources' => ['Somfy', 'Vantis', 'Hunter Douglas', 'Alta', 'Draper', 'Norman', 'Rollock Security Shutters'],
                 ],
                 'Residential / Outdoor Living' => [
-                    'summary' => 'Eclipse drives awnings, shade structures, and patio screens.',
-                    'sources' => ['Eclipse'],
+                    'summary' => 'Patio extension, awning, shade, and solar screen vendors drive outdoor living pages.',
+                    'sources' => ['Austin Screens', 'Draper', 'ShadePro Shade Systems', 'Four Seasons Patio Systems', 'Eclipse'],
                 ],
                 'Residential / Glass & Windows' => [
-                    'summary' => 'Pella, Dallas Flat Glass, Andersen, JELD-WEN, CRL, and Ghost Glass inform the glass pages.',
-                    'sources' => ['Pella', 'Dallas Flat Glass', 'Andersen', 'JELD-WEN', 'CRL', 'Ghost Glass'],
+                    'summary' => 'Window, door, storefront, and glass vendors inform the glass pages.',
+                    'sources' => ['Old Castle / US Aluminum', 'Andersen', 'JELD-WEN', 'Pella', 'Dallas Flat Glass', 'CRL', 'Ghost Glass'],
                 ],
                 'Commercial / Solar Control & Safety' => [
-                    'summary' => '3M and SmartTint drive the commercial film pages.',
-                    'sources' => ['3M', 'SmartTint'],
+                    'summary' => 'Commercial solar, privacy, safety, and decorative film vendors drive film pages.',
+                    'sources' => ['Accent', '3M', 'Sunbelt', 'Avery Dennison', 'Decorative Films', 'SolX', 'Frost', 'SmartTint'],
                 ],
                 'Commercial / Patio Screens & Awnings' => [
-                    'summary' => 'Eclipse drives the commercial shade and awning pages.',
-                    'sources' => ['Eclipse'],
+                    'summary' => 'Commercial patio extension, awning, shade, and screen vendors drive these pages.',
+                    'sources' => ['Austin Screens', 'Draper', 'ShadePro Shade Systems', 'Four Seasons Patio Systems', 'Eclipse'],
                 ],
                 'Commercial / Glass & Windows' => [
-                    'summary' => 'Pella, Dallas Flat Glass, Andersen, JELD-WEN, and CRL drive the commercial glazing page.',
-                    'sources' => ['Pella', 'Dallas Flat Glass', 'Andersen', 'JELD-WEN', 'CRL'],
+                    'summary' => 'Storefront, glazing, window, door, and glass vendors drive commercial glazing.',
+                    'sources' => ['Old Castle / US Aluminum', 'Andersen', 'JELD-WEN', 'Pella', 'Dallas Flat Glass', 'CRL'],
                 ],
                 'Commercial / Window Treatments' => [
-                    'summary' => 'Hunter Douglas, Alta, and Norman drive the commercial shade pages.',
-                    'sources' => ['Hunter Douglas', 'Alta', 'Norman'],
+                    'summary' => 'Shade, motorization, and window treatment vendors drive commercial shade pages.',
+                    'sources' => ['Somfy', 'Vantis', 'Hunter Douglas', 'Alta', 'Draper', 'Norman'],
+                ],
+                'CFO / Climate Control' => [
+                    'summary' => 'CFO-defined vendor map for climate control.',
+                    'sources' => ['Somfy', 'Vantis', 'Accent', '3M', 'Sunbelt', 'Avery Dennison', 'Alta', 'Hunter Douglas', 'Austin Screens', 'Draper'],
+                ],
+                'CFO / Privacy Control' => [
+                    'summary' => 'CFO-defined vendor map for privacy control.',
+                    'sources' => ['Decorative Films', 'SolX', 'Frost', 'Accent', '3M', 'Sunbelt', 'Avery Dennison', 'Alta', 'Hunter Douglas', 'Austin Screens', 'Draper'],
+                ],
+                'CFO / Patio Extension' => [
+                    'summary' => 'CFO-defined vendor map for patio extension.',
+                    'sources' => ['Old Castle / US Aluminum', 'Andersen', 'JELD-WEN', 'ShadePro Shade Systems', 'Four Seasons Patio Systems', 'Eclipse'],
+                ],
+                'CFO / Security and Safety' => [
+                    'summary' => 'CFO-defined vendor map for security and safety.',
+                    'sources' => ['Accent', '3M', 'Sunbelt', 'Avery Dennison', 'Rollock Security Shutters'],
+                ],
+                'CFO / Home Automation & Control' => [
+                    'summary' => 'CFO-defined vendor map for automation and control.',
+                    'sources' => ['Somfy', 'Vantis'],
                 ],
             ],
         ];
@@ -1119,6 +1497,237 @@ HTML
         ];
     }
 
+    protected function systemCategories(): array
+    {
+        return [
+            [
+                'name' => 'Climate Control',
+                'summary' => 'Reduce heat, glare, and energy load.',
+                'examples' => ['window film', 'motorized shades', 'solar screens', 'exterior shades', 'awning shade', 'energy load reduction'],
+                'services' => [
+                    ['book' => 'Residential', 'chapter' => 'Tint & Film', 'page' => 'Solar Film'],
+                    ['book' => 'Residential', 'chapter' => 'Window Treatments', 'page' => 'Window Shades'],
+                    ['book' => 'Residential', 'chapter' => 'Outdoor Living', 'page' => 'Patio Awnings'],
+                    ['book' => 'Residential', 'chapter' => 'Outdoor Living', 'page' => 'Patio Screens'],
+                    ['book' => 'Residential', 'chapter' => 'Glass & Windows', 'page' => 'Window Glass'],
+                    ['book' => 'Commercial', 'chapter' => 'Solar Control & Safety', 'page' => 'Sun Control Film'],
+                    ['book' => 'Commercial', 'chapter' => 'Patio Screens & Awnings', 'page' => 'Patio Screens'],
+                    ['book' => 'Commercial', 'chapter' => 'Window Treatments', 'page' => 'Roller Shades'],
+                ],
+                'vendors' => ['Somfy', 'Vantis', 'Accent', '3M', 'Sunbelt', 'Avery Dennison', 'Alta', 'Hunter Douglas', 'Austin Screens', 'Draper'],
+            ],
+            [
+                'name' => 'Privacy Control',
+                'summary' => 'Create privacy without sacrificing design.',
+                'examples' => ['decorative film', 'frosted film', 'solar screens', 'exterior shades', 'shutters', 'privacy shades'],
+                'services' => [
+                    ['book' => 'Residential', 'chapter' => 'Tint & Film', 'page' => 'Privacy Film'],
+                    ['book' => 'Residential', 'chapter' => 'Window Treatments', 'page' => 'Window Shades'],
+                    ['book' => 'Residential', 'chapter' => 'Window Treatments', 'page' => 'Window Shutters'],
+                    ['book' => 'Residential', 'chapter' => 'Outdoor Living', 'page' => 'Patio Screens'],
+                    ['book' => 'Commercial', 'chapter' => 'Solar Control & Safety', 'page' => 'Privacy Film'],
+                    ['book' => 'Commercial', 'chapter' => 'Window Treatments', 'page' => 'Roller Shades'],
+                    ['book' => 'Commercial', 'chapter' => 'Patio Screens & Awnings', 'page' => 'Patio Screens'],
+                ],
+                'vendors' => ['Decorative Films', 'SolX', 'Frost', 'Accent', '3M', 'Sunbelt', 'Avery Dennison', 'Alta', 'Hunter Douglas', 'Austin Screens', 'Draper'],
+            ],
+            [
+                'name' => 'Patio Extension',
+                'summary' => 'Extend indoor comfort into outdoor living.',
+                'examples' => ['commercial storefront', 'patio doors', 'patio systems', 'shade systems', 'awnings', 'sunrooms'],
+                'services' => [
+                    ['book' => 'Residential', 'chapter' => 'Outdoor Living', 'page' => 'Shade Structures'],
+                    ['book' => 'Residential', 'chapter' => 'Outdoor Living', 'page' => 'Patio Awnings'],
+                    ['book' => 'Residential', 'chapter' => 'Outdoor Living', 'page' => 'Patio Screens'],
+                    ['book' => 'Residential', 'chapter' => 'Glass & Windows', 'page' => 'Window Glass'],
+                    ['book' => 'Commercial', 'chapter' => 'Patio Screens & Awnings', 'page' => 'Patio Awnings'],
+                    ['book' => 'Commercial', 'chapter' => 'Patio Screens & Awnings', 'page' => 'Patio Screens'],
+                    ['book' => 'Commercial', 'chapter' => 'Glass & Windows', 'page' => 'Commercial Glazing'],
+                ],
+                'vendors' => ['Old Castle / US Aluminum', 'Andersen', 'JELD-WEN', 'ShadePro Shade Systems', 'Four Seasons Patio Systems', 'Eclipse'],
+            ],
+            [
+                'name' => 'Security and Safety',
+                'summary' => 'Protect people, property, and peace of mind.',
+                'examples' => ['security film', 'safety film', 'security shutters', 'forced-entry delay', 'storm protection'],
+                'services' => [
+                    ['book' => 'Residential', 'chapter' => 'Tint & Film', 'page' => 'Safety & Security Film'],
+                    ['book' => 'Residential', 'chapter' => 'Window Treatments', 'page' => 'Safety / Storm Shutters'],
+                    ['book' => 'Commercial', 'chapter' => 'Solar Control & Safety', 'page' => 'Safety & Security Film'],
+                    ['book' => 'Commercial', 'chapter' => 'Glass & Windows', 'page' => 'Commercial Glazing'],
+                ],
+                'vendors' => ['Accent', '3M', 'Sunbelt', 'Avery Dennison', 'Rollock Security Shutters'],
+            ],
+            [
+                'name' => 'Home Automation & Control',
+                'summary' => 'Automate comfort, light, shade, and privacy.',
+                'examples' => ['motorized shades', 'smart controls', 'shade automation', 'remote control', 'scheduled scenes'],
+                'services' => [
+                    ['book' => 'Residential', 'chapter' => 'Window Treatments', 'page' => 'Window Shades'],
+                    ['book' => 'Residential', 'chapter' => 'Outdoor Living', 'page' => 'Patio Awnings'],
+                    ['book' => 'Commercial', 'chapter' => 'Window Treatments', 'page' => 'Roller Shades'],
+                    ['book' => 'Commercial', 'chapter' => 'Patio Screens & Awnings', 'page' => 'Patio Awnings'],
+                ],
+                'vendors' => ['Somfy', 'Vantis'],
+            ],
+        ];
+    }
+
+    protected function buildSystemCategoriesPageHtml(array $systemCategoryPages): string
+    {
+        $cards = '';
+        foreach ($this->systemCategories() as $systemCategory) {
+            $page = $systemCategoryPages[$systemCategory['name']] ?? null;
+            $examples = '';
+            foreach (array_slice($systemCategory['examples'], 0, 6) as $example) {
+                $examples .= '<span class="sotx-chip">' . e($example) . '</span>';
+            }
+
+            $href = $page instanceof Page ? $page->getUrl() : '#';
+            $cards .= <<<HTML
+<a href="{$href}" class="sotx-card sotx-service-card">
+    <div class="sotx-card-top">
+        <div>
+            <h4>{$systemCategory['name']}</h4>
+            <p>{$systemCategory['summary']}</p>
+        </div>
+        <span class="sotx-flag">Open</span>
+    </div>
+    <div class="sotx-chip-list">{$examples}</div>
+</a>
+HTML;
+        }
+
+        return $this->buildScaffoldPageHtml(
+            'Start Here',
+            'System Categories',
+            'Start with the customer need, then route into the right service category, product page, vendor page, and official source.',
+            [
+                [
+                    'title' => 'How This Layer Works',
+                    'summary' => 'System categories are routing pages, not document libraries.',
+                    'points' => [
+                        'Use them when a customer describes the outcome they want rather than a specific product.',
+                        'Open the matching Residential or Commercial category for sales context.',
+                        'Use vendor and product pages for specs, warranties, install guides, training, collateral, contacts, and portal references.',
+                    ],
+                ],
+                [
+                    'title' => 'Canonical Path',
+                    'summary' => 'This keeps the hub easy to maintain as vendors, products, and sources change.',
+                    'points' => [
+                        'Customer Need -> System Category -> Residential/Commercial Category -> Product/Vendor Page -> Official Source',
+                        'Do not duplicate vendor facts on routing pages.',
+                        'When a vendor source changes, update the vendor/product page first.',
+                    ],
+                ],
+            ],
+            <<<HTML
+<section class="sotx-section">
+    <div class="sotx-section-head">
+        <div>
+            <h2>Choose the Customer Need</h2>
+            <p class="sotx-note" style="margin:.35rem 0 0;">Each card links to the categories and vendors that support that system.</p>
+        </div>
+    </div>
+    <div class="sotx-service-grid" style="margin-top:1rem;">{$cards}</div>
+</section>
+HTML
+        );
+    }
+
+    protected function buildSystemCategoryPageHtml(array $systemCategory, array $pagesByBook, array $vendorPages): string
+    {
+        $examples = '';
+        foreach ($systemCategory['examples'] as $example) {
+            $examples .= '<span class="sotx-chip">' . e($example) . '</span>';
+        }
+
+        $serviceLinks = $this->buildSystemServiceLinksHtml($systemCategory['services'], $pagesByBook);
+        $vendorLinks = $this->buildSystemVendorLinksHtml($systemCategory['vendors'], $vendorPages);
+
+        $leadContent = <<<HTML
+<section class="sotx-section">
+    <div class="sotx-section-head">
+        <div>
+            <h2>Common Examples</h2>
+            <p class="sotx-note" style="margin:.35rem 0 0;">Use these as recognition cues when a customer describes the need in plain language.</p>
+        </div>
+    </div>
+    <div class="sotx-chip-list" style="margin-top:.65rem;">{$examples}</div>
+</section>
+
+<section class="sotx-section">
+    <div class="sotx-section-head">
+        <div>
+            <h2>Sales Categories</h2>
+            <p class="sotx-note" style="margin:.35rem 0 0;">Open the matching Residential or Commercial category for sales context.</p>
+        </div>
+    </div>
+    <div class="sotx-actions" style="margin-top:.55rem;">{$serviceLinks}</div>
+</section>
+
+<section class="sotx-section">
+    <div class="sotx-section-head">
+        <div>
+            <h2>Vendor/Product Source Pages</h2>
+            <p class="sotx-note" style="margin:.35rem 0 0;">Use these pages for specs, warranties, install guides, collateral, contacts, and official links.</p>
+        </div>
+    </div>
+    <div class="sotx-actions" style="margin-top:.55rem;">{$vendorLinks}</div>
+</section>
+HTML;
+
+        return $this->buildScaffoldPageHtml(
+            'System Category',
+            $systemCategory['name'],
+            $systemCategory['summary'],
+            [
+                [
+                    'title' => 'How to Use This Page',
+                    'summary' => 'Start here when the customer need is clear but the product path is not.',
+                    'points' => [
+                        'Choose a sales category first if you need positioning or project-fit context.',
+                        'Choose a vendor/product source page when you need specs, warranty, installation, training, or collateral.',
+                        'Keep new details on the vendor or product page, then link here only when the route changes.',
+                    ],
+                ],
+            ],
+            $leadContent
+        );
+    }
+
+    protected function buildSystemServiceLinksHtml(array $serviceLinks, array $pagesByBook): string
+    {
+        $html = '';
+        foreach ($serviceLinks as $serviceLink) {
+            $page = $pagesByBook[$serviceLink['book']][$serviceLink['chapter']][$serviceLink['page']] ?? null;
+            if (!$page instanceof Page) {
+                continue;
+            }
+
+            $label = $serviceLink['book'] . ' / ' . $serviceLink['chapter'] . ' / ' . $serviceLink['page'];
+            $html .= '<a href="' . e($page->getUrl()) . '" class="sotx-pill">' . e($label) . '</a>';
+        }
+
+        return $html;
+    }
+
+    protected function buildSystemVendorLinksHtml(array $vendorNames, array $vendorPages): string
+    {
+        $html = '';
+        foreach ($vendorNames as $vendorName) {
+            $page = $vendorPages[$vendorName] ?? null;
+            if (!$page instanceof Page) {
+                continue;
+            }
+
+            $html .= '<a href="' . e($page->getUrl()) . '" class="sotx-pill">' . e($vendorName) . '</a>';
+        }
+
+        return $html;
+    }
+
     protected function serviceCatalog(): array
     {
         return [
@@ -1127,32 +1736,32 @@ HTML
                     'Tint & Film' => [
                         'description' => 'Residential tint and film solutions.',
                         'pages' => [
-                            ['name' => 'Safety & Security Film', 'summary' => 'What residential safety film solves and how to position it.', 'products' => ['3M']],
-                            ['name' => 'Solar Film', 'summary' => 'Energy and glare control film for homes.', 'products' => ['3M', 'SmartTint']],
-                            ['name' => 'Privacy Film', 'summary' => 'Film options that improve privacy without changing the room.', 'products' => ['3M', 'SmartTint']],
+                            ['name' => 'Safety & Security Film', 'summary' => 'What residential safety film solves and how to position it.', 'products' => ['Accent', '3M', 'Sunbelt', 'Avery Dennison']],
+                            ['name' => 'Solar Film', 'summary' => 'Energy and glare control film for homes.', 'products' => ['Accent', '3M', 'Sunbelt', 'Avery Dennison']],
+                            ['name' => 'Privacy Film', 'summary' => 'Film options that improve privacy without changing the room.', 'products' => ['Decorative Films', 'SolX', 'Frost', 'Accent', '3M', 'Sunbelt', 'Avery Dennison']],
                         ],
                     ],
                     'Window Treatments' => [
                         'description' => 'Shades, blinds, shutters, and motorized treatment options.',
                         'pages' => [
-                            ['name' => 'Window Shades', 'summary' => 'Shades that solve light control and privacy needs.', 'products' => ['Hunter Douglas', 'Alta', 'Norman']],
-                            ['name' => 'Window Shutters', 'summary' => 'Shutter materials, finishes, and use cases.', 'products' => ['Hunter Douglas', 'Norman']],
+                            ['name' => 'Window Shades', 'summary' => 'Shades that solve light control and privacy needs.', 'products' => ['Somfy', 'Vantis', 'Hunter Douglas', 'Alta', 'Draper', 'Norman']],
+                            ['name' => 'Window Shutters', 'summary' => 'Shutter materials, finishes, and use cases.', 'products' => ['Hunter Douglas', 'Alta', 'Norman']],
                             ['name' => 'Window Blinds', 'summary' => 'Blind options for homeowners and designers.', 'products' => ['Hunter Douglas', 'Alta', 'Norman']],
-                            ['name' => 'Safety / Storm Shutters', 'summary' => 'Protective shutter options for the home.', 'products' => ['Norman']],
+                            ['name' => 'Safety / Storm Shutters', 'summary' => 'Protective shutter options for the home.', 'products' => ['Rollock Security Shutters', 'Norman']],
                         ],
                     ],
                     'Outdoor Living' => [
                         'description' => 'Awnings, shade structures, and exterior coverage solutions.',
                         'pages' => [
-                            ['name' => 'Shade Structures', 'summary' => 'What residential shade structures solve and how to position them.', 'products' => ['Eclipse']],
-                            ['name' => 'Patio Awnings', 'summary' => 'Retractable and fixed awning options.', 'products' => ['Eclipse']],
-                            ['name' => 'Patio Screens', 'summary' => 'Screens and exterior comfort options.', 'products' => ['Eclipse']],
+                            ['name' => 'Shade Structures', 'summary' => 'What residential shade structures solve and how to position them.', 'products' => ['ShadePro Shade Systems', 'Four Seasons Patio Systems', 'Eclipse']],
+                            ['name' => 'Patio Awnings', 'summary' => 'Retractable and fixed awning options.', 'products' => ['ShadePro Shade Systems', 'Four Seasons Patio Systems', 'Eclipse']],
+                            ['name' => 'Patio Screens', 'summary' => 'Screens and exterior comfort options.', 'products' => ['Austin Screens', 'Draper', 'ShadePro Shade Systems', 'Eclipse']],
                         ],
                     ],
                     'Glass & Windows' => [
                         'description' => 'Glass replacement, window replacement, and related service references.',
                         'pages' => [
-                            ['name' => 'Window Glass', 'summary' => 'Glass replacement references and service notes.', 'products' => ['Pella', 'Dallas Flat Glass', 'Andersen', 'JELD-WEN']],
+                            ['name' => 'Window Glass', 'summary' => 'Glass replacement references and service notes.', 'products' => ['Old Castle / US Aluminum', 'Andersen', 'JELD-WEN', 'Pella', 'Dallas Flat Glass']],
                             ['name' => 'Frameless Showers', 'summary' => 'Shower enclosure references.', 'products' => ['CRL']],
                             ['name' => 'Window Cleaning', 'summary' => 'Care and maintenance notes for finished work.'],
                         ],
@@ -1164,29 +1773,29 @@ HTML
                     'Solar Control & Safety' => [
                         'description' => 'Commercial tint and protective film solutions.',
                         'pages' => [
-                            ['name' => 'Sun Control Film', 'summary' => 'Energy and glare control for commercial properties.', 'products' => ['3M']],
-                            ['name' => 'Safety & Security Film', 'summary' => 'Protective film for businesses and storefronts.', 'products' => ['3M']],
-                            ['name' => 'Privacy Film', 'summary' => 'Privacy and glare management for commercial spaces.', 'products' => ['3M', 'SmartTint']],
+                            ['name' => 'Sun Control Film', 'summary' => 'Energy and glare control for commercial properties.', 'products' => ['Accent', '3M', 'Sunbelt', 'Avery Dennison']],
+                            ['name' => 'Safety & Security Film', 'summary' => 'Protective film for businesses and storefronts.', 'products' => ['Accent', '3M', 'Sunbelt', 'Avery Dennison']],
+                            ['name' => 'Privacy Film', 'summary' => 'Privacy and glare management for commercial spaces.', 'products' => ['Decorative Films', 'SolX', 'Frost', 'Accent', '3M', 'Sunbelt', 'Avery Dennison']],
                             ['name' => 'SmartTint', 'summary' => 'Switchable privacy glass and film references.', 'products' => ['SmartTint']],
                         ],
                     ],
                     'Patio Screens & Awnings' => [
                         'description' => 'Commercial exterior shade and protection systems.',
                         'pages' => [
-                            ['name' => 'Patio Awnings', 'summary' => 'Commercial awning and shade references.', 'products' => ['Eclipse']],
-                            ['name' => 'Patio Screens', 'summary' => 'Screen and exterior comfort solutions.', 'products' => ['Eclipse']],
+                            ['name' => 'Patio Awnings', 'summary' => 'Commercial awning and shade references.', 'products' => ['ShadePro Shade Systems', 'Four Seasons Patio Systems', 'Eclipse']],
+                            ['name' => 'Patio Screens', 'summary' => 'Screen and exterior comfort solutions.', 'products' => ['Austin Screens', 'Draper', 'ShadePro Shade Systems', 'Eclipse']],
                         ],
                     ],
                     'Glass & Windows' => [
                         'description' => 'Commercial glass replacement, glazing, and storefront references.',
                         'pages' => [
-                            ['name' => 'Commercial Glazing', 'summary' => 'Storefront and glazing references.', 'products' => ['Pella', 'Dallas Flat Glass', 'Andersen', 'JELD-WEN', 'CRL']],
+                            ['name' => 'Commercial Glazing', 'summary' => 'Storefront and glazing references.', 'products' => ['Old Castle / US Aluminum', 'Andersen', 'JELD-WEN', 'CRL', 'Pella', 'Dallas Flat Glass']],
                         ],
                     ],
                     'Window Treatments' => [
                         'description' => 'Commercial shades and motorized systems.',
                         'pages' => [
-                            ['name' => 'Roller Shades', 'summary' => 'Commercial shade systems and project references.', 'products' => ['Hunter Douglas', 'Alta', 'Norman']],
+                            ['name' => 'Roller Shades', 'summary' => 'Commercial shade systems and project references.', 'products' => ['Somfy', 'Vantis', 'Hunter Douglas', 'Alta', 'Draper', 'Norman']],
                         ],
                     ],
                 ],
@@ -1284,16 +1893,14 @@ HTML;
 
         $warrantyLinks = $this->buildVendorWarrantyLinks($brandName, $brandProfile);
         $warrantyNote = $this->buildVendorWarrantyNote($brandName);
-        if (!empty($warrantyLinks) || $warrantyNote !== '') {
-            $warrantyLinksHtml = $this->renderLinkPills($warrantyLinks, 'Warranty Information');
-            $warrantyLinksHtml .= '<p class="sotx-note" style="margin:.65rem 0 0;">' . e($this->buildWarrantyReminder($brandName)) . '</p>';
+        $warrantyLinksHtml = $this->renderLinkPills($warrantyLinks, 'Warranty Information');
+        $warrantyLinksHtml .= '<p class="sotx-note" style="margin:.65rem 0 0;">' . e($this->buildWarrantyReminder($brandName)) . '</p>';
 
-            if ($warrantyNote !== '') {
-                $warrantyLinksHtml .= '<p class="sotx-note" style="margin:.65rem 0 0;">' . e($warrantyNote) . '</p>';
-            }
+        if ($warrantyNote !== '') {
+            $warrantyLinksHtml .= '<p class="sotx-note" style="margin:.65rem 0 0;">' . e($warrantyNote) . '</p>';
+        }
 
-            if ($warrantyLinksHtml !== '') {
-                $leadContent .= <<<HTML
+        $leadContent .= <<<HTML
 <section class="sotx-section">
     <div class="sotx-section-head">
         <div>
@@ -1304,14 +1911,14 @@ HTML;
     {$warrantyLinksHtml}
 </section>
 HTML;
-            }
-        }
 
         $faqLinks = $this->buildVendorFaqLinks($brandName);
-        if (!empty($faqLinks)) {
-            $faqLinksHtml = $this->renderLinkPills($faqLinks, 'FAQs');
-            if ($faqLinksHtml !== '') {
-                $leadContent .= <<<HTML
+        $faqLinksHtml = $this->renderLinkPills($faqLinks, 'FAQs');
+        if ($faqLinksHtml === '') {
+            $faqLinksHtml = '<p class="sotx-note" style="margin:.65rem 0 0;">No public FAQ page is listed for this vendor yet. Confirm product questions directly with the rep before quoting.</p>';
+        }
+
+        $leadContent .= <<<HTML
 <section class="sotx-section">
     <div class="sotx-section-head">
         <div>
@@ -1322,11 +1929,12 @@ HTML;
     {$faqLinksHtml}
 </section>
 HTML;
-            }
+
+        if ($sourceLinks === '') {
+            $sourceLinks = '<span class="sotx-note">No public quick link is listed yet. Use the Source Inventory and rep contact path below until an official source is confirmed.</span>';
         }
 
-        if ($sourceLinks !== '') {
-            $leadContent .= <<<HTML
+        $leadContent .= <<<HTML
 <section class="sotx-section">
     <div class="sotx-section-head">
         <div>
@@ -1337,7 +1945,6 @@ HTML;
     <div class="sotx-actions" style="margin-top:.55rem;">{$sourceLinks}</div>
 </section>
 HTML;
-        }
 
         $sourceInventoryHtml = $this->buildSourceInventoryHtml($brandName);
         if ($sourceInventoryHtml !== '') {
@@ -1385,6 +1992,10 @@ HTML;
         </div>
     </div>
     <div class="sotx-actions" style="margin-top:.55rem;">{$links}</div>
+    <div class="sotx-status-row">
+        <span class="sotx-status sotx-status-audited">Audited</span>
+        <span class="sotx-status sotx-status-rep">Rep Confirm Needed</span>
+    </div>
 </section>
 HTML;
 
@@ -1488,8 +2099,14 @@ HTML;
         if (empty($vendorSource) && !empty($sourceBrandProfile['links'][0]['url'] ?? null)) {
             $vendorSource = $sourceBrandProfile['links'][0]['url'];
         }
+        $vendorHubHtml = '';
         if (!empty($vendorSource)) {
-            $leadContent .= <<<HTML
+            $vendorHubHtml = '<a href="' . e($vendorSource) . '" class="sotx-pill" target="_blank" rel="noreferrer">Vendor Website</a>';
+        } else {
+            $vendorHubHtml = '<span class="sotx-note">No public vendor website is listed for this line yet. Use the vendor overview Source Inventory and rep contact path.</span>';
+        }
+
+        $leadContent .= <<<HTML
 <section class="sotx-section">
     <div class="sotx-section-head">
         <div>
@@ -1498,11 +2115,10 @@ HTML;
         </div>
     </div>
     <div class="sotx-actions" style="margin-top:.55rem;">
-        <a href="{$vendorSource}" class="sotx-pill" target="_blank" rel="noreferrer">Vendor Website</a>
+        {$vendorHubHtml}
     </div>
 </section>
 HTML;
-        }
 
         return $this->buildScaffoldPageHtml(
             $brandName,
@@ -1596,7 +2212,7 @@ HTML;
 
     protected function buildVendorWarrantyNote(string $brandName): string
     {
-        return (string) ($this->sourceRegistry()['brands'][$brandName]['warranty_note'] ?? '');
+        return (string) ($this->sourceRegistry()['brands'][$brandName]['warranty_note'] ?? 'No public warranty page is listed for this vendor yet. Confirm warranty terms directly with the vendor or distributor rep before quoting coverage.');
     }
 
     protected function buildWarrantyReminder(string $brandName): string
@@ -1672,7 +2288,9 @@ HTML;
 
         $sectionHtml = '';
         foreach ($sections as $sectionName => $items) {
+            $rawSectionName = $sectionName;
             $sectionName = e($sectionName);
+            $statusHtml = $this->renderResourceStatusTags($rawSectionName, $items);
             $listItems = '';
             foreach ($items as $item) {
                 $listItems .= '<li>' . $this->renderSourceMarkdownLine($item) . '</li>';
@@ -1684,8 +2302,9 @@ HTML;
         <div>
             <p class="sotx-kicker" style="margin-bottom:.35rem;">Verified Source</p>
             <h4>{$sectionName}</h4>
+            {$statusHtml}
         </div>
-        <span class="sotx-flag">Live</span>
+        <span class="sotx-flag">Resource</span>
     </div>
     <ul class="sotx-template-list">
         {$listItems}
@@ -1694,19 +2313,65 @@ HTML;
 HTML;
         }
 
+        $legend = $this->renderAuditStatusLegend();
+
         return <<<HTML
 <section class="sotx-section">
     <div class="sotx-section-head">
         <div>
-            <h2>Source Inventory</h2>
-            <p class="sotx-note" style="margin:.35rem 0 0;">Official vendor links and access notes used to keep this vendor page current.</p>
+            <h2>Source Inventory / Sales Resource Inventory</h2>
+            <p class="sotx-note" style="margin:.35rem 0 0;">Use these sections for install guides, portals, specs, samples, pricing, training, collateral, warranty, FAQs, and rep contact paths.</p>
         </div>
     </div>
+    {$legend}
     <div class="sotx-service-grid">
         {$sectionHtml}
     </div>
 </section>
 HTML;
+    }
+
+    protected function renderAuditStatusLegend(): string
+    {
+        return <<<HTML
+<div class="sotx-status-row" style="margin:.25rem 0 1rem;">
+    <span class="sotx-status sotx-status-audited">Audited</span>
+    <span class="sotx-status sotx-status-login">Login Required</span>
+    <span class="sotx-status sotx-status-pending">Pending</span>
+    <span class="sotx-status sotx-status-rep">Rep Confirm Needed</span>
+    <span class="sotx-status sotx-status-broken">Broken / Replace</span>
+</div>
+HTML;
+    }
+
+    protected function renderResourceStatusTags(string $sectionName, array $items): string
+    {
+        $haystack = strtolower($sectionName . ' ' . implode(' ', $items));
+        $statuses = ['Audited' => 'audited'];
+
+        if (str_contains($haystack, 'login') || str_contains($haystack, 'portal') || str_contains($haystack, 'dealer') || str_contains($haystack, 'pricing')) {
+            $statuses['Login Required'] = 'login';
+        }
+
+        if (str_contains($haystack, 'pending') || str_contains($haystack, 'awaiting') || str_contains($haystack, 'requested')) {
+            $statuses['Pending'] = 'pending';
+        }
+
+        if (str_contains($haystack, 'add rep') || str_contains($haystack, 'contact your rep') || str_contains($haystack, 'confirm') || str_contains($haystack, 'directly')) {
+            $statuses['Rep Confirm Needed'] = 'rep';
+        }
+
+        if (str_contains($haystack, 'broken') || str_contains($haystack, 'replace')) {
+            $statuses['Broken / Replace'] = 'broken';
+        }
+
+        $html = '<div class="sotx-status-row">';
+        foreach ($statuses as $label => $className) {
+            $html .= '<span class="sotx-status sotx-status-' . e($className) . '">' . e($label) . '</span>';
+        }
+        $html .= '</div>';
+
+        return $html;
     }
 
     protected function parsedSourceMarkdownBrands(): array
@@ -1752,6 +2417,39 @@ HTML;
         }
 
         return $brands;
+    }
+
+    protected function extractSourceMarkdownLinks(array $sections): array
+    {
+        $links = [];
+        $seen = [];
+
+        foreach ($sections as $items) {
+            foreach ($items as $item) {
+                if (!preg_match_all('/\[(.*?)\]\((https?:\/\/[^)]+)\)/', $item, $matches, PREG_SET_ORDER)) {
+                    continue;
+                }
+
+                foreach ($matches as $match) {
+                    $url = $match[2];
+                    if (isset($seen[$url])) {
+                        continue;
+                    }
+
+                    $seen[$url] = true;
+                    $links[] = [
+                        'label' => $match[1],
+                        'url'   => $url,
+                    ];
+
+                    if (count($links) >= 5) {
+                        return $links;
+                    }
+                }
+            }
+        }
+
+        return $links;
     }
 
     protected function renderSourceMarkdownLine(string $line): string
@@ -2166,6 +2864,32 @@ HTML;
 
     protected function buildHomepageHtml(array $books, array $chaptersByBook, array $pagesByBook): string
     {
+        $systemCards = '';
+        foreach ($this->systemCategories() as $systemCategory) {
+            $page = $pagesByBook['Start Here'][null][$systemCategory['name']] ?? null;
+            if (!$page instanceof Page) {
+                continue;
+            }
+
+            $items = '';
+            foreach (array_slice($systemCategory['examples'], 0, 5) as $example) {
+                $items .= '<span class="sotx-chip">' . e($example) . '</span>';
+            }
+
+            $systemCards .= <<<HTML
+<a href="{$page->getUrl()}" class="sotx-card sotx-service-card">
+    <div class="sotx-card-top">
+        <div>
+            <h4>{$systemCategory['name']}</h4>
+            <p>{$systemCategory['summary']}</p>
+        </div>
+        <span class="sotx-flag">Open</span>
+    </div>
+    <div class="sotx-chip-list">{$items}</div>
+</a>
+HTML;
+        }
+
         $homepageSections = [
             [
                 'title' => 'Residential',
@@ -2240,24 +2964,26 @@ HTML;
 HTML;
         }
 
+        $startHerePage = $pagesByBook['Start Here'][null]['Start Here'] ?? null;
+        $startHereUrl = $startHerePage instanceof Page ? $startHerePage->getUrl() : $books['Start Here']->getUrl();
+
         $quickLinks = '';
         foreach ([
-            ['book' => $books['Start Here'], 'label' => 'Start Here'],
-            ['book' => $books['Vendors'], 'label' => 'Vendors'],
+            ['url' => $startHereUrl, 'label' => 'Start Here'],
+            ['url' => $books['Vendors']->getUrl(), 'label' => 'Vendors'],
         ] as $link) {
-            $quickLinks .= '<a href="' . e($link['book']->getUrl()) . '" class="sotx-pill">' . e($link['label']) . '</a>';
+            $quickLinks .= '<a href="' . e($link['url']) . '" class="sotx-pill">' . e($link['label']) . '</a>';
         }
 
-        $startHereBook = $books['Start Here'];
         $vendorsBook = $books['Vendors'];
 
         $supportCards = '';
         foreach ([
-            ['book' => $startHereBook, 'title' => 'Start Here', 'description' => 'Fast onboarding for new reps and a quick map of the hub.'],
-            ['book' => $vendorsBook, 'title' => 'Vendors', 'description' => 'Brand-level vendor pages and what we carry.'],
+            ['url' => $startHereUrl, 'title' => 'Start Here', 'description' => 'Task buttons for sales-call lookup, updates, portals, and source checks.'],
+            ['url' => $vendorsBook->getUrl(), 'title' => 'Vendors', 'description' => 'Brand-level vendor pages and what we carry.'],
         ] as $supportCard) {
             $supportCards .= <<<HTML
-<a href="{$supportCard['book']->getUrl()}" class="sotx-card sotx-mini-card">
+<a href="{$supportCard['url']}" class="sotx-card sotx-mini-card">
     <h4>{$supportCard['title']}</h4>
     <p>{$supportCard['description']}</p>
 </a>
@@ -2272,8 +2998,8 @@ HTML;
                 <p class="sotx-kicker">High Level</p>
                 <h1>Find the right answer fast.</h1>
                 <p class="sotx-lede" style="max-width:38rem;">
-                    Sales-ready access to the resources our team needs most: product lines, vendor context, and field notes.
-                    Organized to match the Shades of Texas brand and the way our teams actually sell.
+                    Start with the customer need, route into the right service category, then use vendor and product pages for the official source.
+                    Built so specs, warranties, training, collateral, and contacts stay easy to find without being repeated.
                 </p>
             </div>
             <div class="sotx-actions">
@@ -2290,12 +3016,12 @@ HTML;
                 <span>&amp; Insured</span>
             </div>
             <div class="sotx-metric">
-                <strong>Vendors</strong>
-                <span>Brands &amp; specs</span>
+                <strong>5 Systems</strong>
+                <span>Customer needs</span>
             </div>
             <div class="sotx-metric">
-                <strong>Fast</strong>
-                <span>Sales navigation</span>
+                <strong>Vendors</strong>
+                <span>Source of truth</span>
             </div>
         </div>
     </section>
@@ -2303,8 +3029,20 @@ HTML;
     <section class="sotx-section">
         <div class="sotx-section-head">
             <div>
+                <h2>System Categories</h2>
+                <p class="sotx-note" style="margin:.35rem 0 0;">Start here when the customer describes the outcome they want.</p>
+            </div>
+        </div>
+        <div class="sotx-service-grid" style="margin-top:1rem;">
+            {$systemCards}
+        </div>
+    </section>
+
+    <section class="sotx-section">
+        <div class="sotx-section-head">
+            <div>
                 <h2>Service Areas</h2>
-                <p class="sotx-note" style="margin:.35rem 0 0;">Choose the project type first, then jump into the category.</p>
+                <p class="sotx-note" style="margin:.35rem 0 0;">Choose Residential or Commercial when the project type is already clear.</p>
             </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:1rem;">
@@ -2318,14 +3056,15 @@ HTML;
         </div>
     </section>
 
-    <section class="sotx-section sotx-panel sotx-guide">
-        <h2>How to Use the Hub</h2>
-        <ol>
-            <li>Pick the service area first.</li>
-            <li>Jump into the category that matches the customer’s need.</li>
-            <li>Open the product page for the exact brand or line we carry.</li>
-            <li>Use the vendor page and source map when a deal needs more detail.</li>
-        </ol>
+    <section class="sotx-section sotx-panel sotx-section-card">
+        <div class="sotx-card-top">
+            <div>
+                <p class="sotx-kicker">Workflow</p>
+                <h2>Need first. Vendor facts last.</h2>
+                <p class="sotx-note" style="margin:.35rem 0 0;">Use categories to route the conversation, then open vendor/product pages for specs, warranties, install guides, collateral, contacts, and official links.</p>
+            </div>
+            <a href="{$startHereUrl}" class="sotx-pill">Open Task Buttons</a>
+        </div>
     </section>
 </div>
 HTML;
@@ -2349,32 +3088,32 @@ HTML;
                     'Tint & Film' => [
                         'description' => 'Residential tint and film solutions.',
                         'pages' => [
-                            ['name' => 'Safety & Security Film', 'summary' => 'What residential safety film solves and how to position it.', 'details' => 'Use the four sections below to keep the sales rep on track for this film type.', 'products' => ['3M']],
-                            ['name' => 'Solar Film', 'summary' => 'Energy and glare control film for homes.', 'details' => 'Use the four sections below to compare solar-control film options.', 'products' => ['3M', 'SmartTint']],
-                            ['name' => 'Privacy Film', 'summary' => 'Film options that improve privacy without changing the room.', 'details' => 'Use the four sections below for privacy film positioning and references.', 'products' => ['3M', 'SmartTint']],
+                            ['name' => 'Safety & Security Film', 'summary' => 'What residential safety film solves and how to position it.', 'details' => 'Use the four sections below to keep the sales rep on track for this film type.', 'products' => ['Accent', '3M', 'Sunbelt', 'Avery Dennison']],
+                            ['name' => 'Solar Film', 'summary' => 'Energy and glare control film for homes.', 'details' => 'Use the four sections below to compare solar-control film options.', 'products' => ['Accent', '3M', 'Sunbelt', 'Avery Dennison']],
+                            ['name' => 'Privacy Film', 'summary' => 'Film options that improve privacy without changing the room.', 'details' => 'Use the four sections below for privacy film positioning and references.', 'products' => ['Decorative Films', 'SolX', 'Frost', 'Accent', '3M', 'Sunbelt', 'Avery Dennison']],
                         ],
                     ],
                     'Window Treatments' => [
                         'description' => 'Shades, blinds, shutters, and motorized treatment options.',
                         'pages' => [
-                            ['name' => 'Window Shades', 'summary' => 'Shades that solve light control and privacy needs.', 'details' => 'Use the four sections below for residential shade solutions.', 'products' => ['Hunter Douglas', 'Alta', 'Norman']],
-                            ['name' => 'Window Shutters', 'summary' => 'Shutter materials, finishes, and use cases.', 'details' => 'Use the four sections below for shutter options and comparisons.', 'products' => ['Hunter Douglas', 'Norman']],
+                            ['name' => 'Window Shades', 'summary' => 'Shades that solve light control and privacy needs.', 'details' => 'Use the four sections below for residential shade solutions.', 'products' => ['Somfy', 'Vantis', 'Hunter Douglas', 'Alta', 'Draper', 'Norman']],
+                            ['name' => 'Window Shutters', 'summary' => 'Shutter materials, finishes, and use cases.', 'details' => 'Use the four sections below for shutter options and comparisons.', 'products' => ['Hunter Douglas', 'Alta', 'Norman']],
                             ['name' => 'Window Blinds', 'summary' => 'Blind options for homeowners and designers.', 'details' => 'Use the four sections below for blind products and selling points.', 'products' => ['Hunter Douglas', 'Alta', 'Norman']],
-                            ['name' => 'Safety / Storm Shutters', 'summary' => 'Protective shutter options for the home.', 'details' => 'Use the four sections below for storm and safety shutter references.', 'products' => ['Norman']],
+                            ['name' => 'Safety / Storm Shutters', 'summary' => 'Protective shutter options for the home.', 'details' => 'Use the four sections below for storm and safety shutter references.', 'products' => ['Rollock Security Shutters', 'Norman']],
                         ],
                     ],
                     'Outdoor Living' => [
                         'description' => 'Awnings, shade structures, and exterior coverage solutions.',
                         'pages' => [
-                            ['name' => 'Shade Structures', 'summary' => 'What residential shade structures solve and how to position them.', 'details' => 'Use the four sections below for outdoor shade structures.', 'products' => ['Eclipse']],
-                            ['name' => 'Patio Awnings', 'summary' => 'Retractable and fixed awning options.', 'details' => 'Use the four sections below for awning options and sales notes.', 'products' => ['Eclipse']],
-                            ['name' => 'Patio Screens', 'summary' => 'Screens and exterior comfort options.', 'details' => 'Use the four sections below for patio screen solutions.', 'products' => ['Eclipse']],
+                            ['name' => 'Shade Structures', 'summary' => 'What residential shade structures solve and how to position them.', 'details' => 'Use the four sections below for outdoor shade structures.', 'products' => ['ShadePro Shade Systems', 'Four Seasons Patio Systems', 'Eclipse']],
+                            ['name' => 'Patio Awnings', 'summary' => 'Retractable and fixed awning options.', 'details' => 'Use the four sections below for awning options and sales notes.', 'products' => ['ShadePro Shade Systems', 'Four Seasons Patio Systems', 'Eclipse']],
+                            ['name' => 'Patio Screens', 'summary' => 'Screens and exterior comfort options.', 'details' => 'Use the four sections below for patio screen solutions.', 'products' => ['Austin Screens', 'Draper', 'ShadePro Shade Systems', 'Eclipse']],
                         ],
                     ],
                     'Glass & Windows' => [
                         'description' => 'Glass replacement, window replacement, and related service references.',
                         'pages' => [
-                            ['name' => 'Window Glass', 'summary' => 'Glass replacement references and service notes.', 'details' => 'Use the four sections below for glass replacement projects.', 'products' => ['Dallas Flat Glass', 'Ghost Glass']],
+                            ['name' => 'Window Glass', 'summary' => 'Glass replacement references and service notes.', 'details' => 'Use the four sections below for glass replacement projects.', 'products' => ['Old Castle / US Aluminum', 'Andersen', 'JELD-WEN', 'Dallas Flat Glass', 'Ghost Glass']],
                             ['name' => 'Frameless Showers', 'summary' => 'Shower enclosure references.', 'details' => 'Use the four sections below for frameless shower projects.', 'products' => ['CRL']],
                             ['name' => 'Window Cleaning', 'summary' => 'Care and maintenance notes for finished work.', 'details' => 'Use the four sections below for cleaning and maintenance references.'],
                         ],
@@ -2387,29 +3126,29 @@ HTML;
                     'Solar Control & Safety' => [
                         'description' => 'Commercial tint and protective film solutions.',
                         'pages' => [
-                            ['name' => 'Sun Control Film', 'summary' => 'Energy and glare control for commercial properties.', 'details' => 'Use the four sections below for commercial sun-control film.', 'products' => ['3M']],
-                            ['name' => 'Safety & Security Film', 'summary' => 'Protective film for businesses and storefronts.', 'details' => 'Use the four sections below for commercial safety film.', 'products' => ['3M']],
-                            ['name' => 'Privacy Film', 'summary' => 'Privacy and glare management for commercial spaces.', 'details' => 'Use the four sections below for commercial privacy film.', 'products' => ['3M', 'SmartTint']],
+                            ['name' => 'Sun Control Film', 'summary' => 'Energy and glare control for commercial properties.', 'details' => 'Use the four sections below for commercial sun-control film.', 'products' => ['Accent', '3M', 'Sunbelt', 'Avery Dennison']],
+                            ['name' => 'Safety & Security Film', 'summary' => 'Protective film for businesses and storefronts.', 'details' => 'Use the four sections below for commercial safety film.', 'products' => ['Accent', '3M', 'Sunbelt', 'Avery Dennison']],
+                            ['name' => 'Privacy Film', 'summary' => 'Privacy and glare management for commercial spaces.', 'details' => 'Use the four sections below for commercial privacy film.', 'products' => ['Decorative Films', 'SolX', 'Frost', 'Accent', '3M', 'Sunbelt', 'Avery Dennison']],
                             ['name' => 'SmartTint', 'summary' => 'Switchable privacy glass and film references.', 'details' => 'Use the four sections below for switchable privacy solutions.', 'products' => ['SmartTint']],
                         ],
                     ],
                     'Patio Screens & Awnings' => [
                         'description' => 'Commercial exterior shade and protection systems.',
                         'pages' => [
-                            ['name' => 'Patio Awnings', 'summary' => 'Commercial awning and shade references.', 'details' => 'Use the four sections below for commercial awning work.', 'products' => ['Eclipse']],
-                            ['name' => 'Patio Screens', 'summary' => 'Screen and exterior comfort solutions.', 'details' => 'Use the four sections below for commercial patio screen work.', 'products' => ['Eclipse']],
+                            ['name' => 'Patio Awnings', 'summary' => 'Commercial awning and shade references.', 'details' => 'Use the four sections below for commercial awning work.', 'products' => ['ShadePro Shade Systems', 'Four Seasons Patio Systems', 'Eclipse']],
+                            ['name' => 'Patio Screens', 'summary' => 'Screen and exterior comfort solutions.', 'details' => 'Use the four sections below for commercial patio screen work.', 'products' => ['Austin Screens', 'Draper', 'ShadePro Shade Systems', 'Eclipse']],
                         ],
                     ],
                     'Glass & Windows' => [
                         'description' => 'Commercial glass replacement, glazing, and storefront references.',
                         'pages' => [
-                            ['name' => 'Commercial Glazing', 'summary' => 'Storefront and glazing references.', 'details' => 'Use the four sections below for commercial glazing projects.', 'products' => ['Dallas Flat Glass', 'Ghost Glass', 'JELD-WEN', 'CRL']],
+                            ['name' => 'Commercial Glazing', 'summary' => 'Storefront and glazing references.', 'details' => 'Use the four sections below for commercial glazing projects.', 'products' => ['Old Castle / US Aluminum', 'Andersen', 'JELD-WEN', 'CRL', 'Dallas Flat Glass', 'Ghost Glass']],
                         ],
                     ],
                     'Window Treatments' => [
                         'description' => 'Commercial shades and motorized systems.',
                         'pages' => [
-                            ['name' => 'Roller Shades', 'summary' => 'Commercial shade systems and project references.', 'details' => 'Use the four sections below for commercial roller shades.', 'products' => ['Hunter Douglas', 'Alta', 'Norman']],
+                            ['name' => 'Roller Shades', 'summary' => 'Commercial shade systems and project references.', 'details' => 'Use the four sections below for commercial roller shades.', 'products' => ['Somfy', 'Vantis', 'Hunter Douglas', 'Alta', 'Draper', 'Norman']],
                         ],
                     ],
                 ],
@@ -2418,10 +3157,24 @@ HTML;
                 'description' => 'Manufacturer and product-line reference pages for the products Shades of Texas carries.',
                 'chapters' => [
                     '3M' => ['description' => '3M product reference and sales support.'],
+                    'Accent' => ['description' => 'Accent distributor reference for 3M film resources.'],
+                    'Sunbelt' => ['description' => 'Sunbelt distributor reference for Avery Dennison film resources.'],
+                    'Avery Dennison' => ['description' => 'Avery Dennison architectural film product reference and sales support.'],
+                    'Somfy' => ['description' => 'Somfy motorization and automation product reference and sales support.'],
+                    'Vantis' => ['description' => 'Vantis automation and control product reference and sales support.'],
                     'Hunter Douglas' => ['description' => 'Hunter Douglas product reference and sales support.'],
                     'Alta' => ['description' => 'Alta product reference and sales support.'],
                     'Norman' => ['description' => 'Norman product reference and sales support.'],
                     'Eclipse' => ['description' => 'Eclipse product reference and sales support.'],
+                    'Austin Screens' => ['description' => 'Austin Screens solar screen product reference and sales support.'],
+                    'Draper' => ['description' => 'Draper shade, screen, and solar control product reference and sales support.'],
+                    'Decorative Films' => ['description' => 'Decorative Films privacy and decorative film product reference and sales support.'],
+                    'SolX' => ['description' => 'SolX decorative and privacy film product reference and sales support.'],
+                    'Frost' => ['description' => 'Frost privacy film product reference and sales support.'],
+                    'Old Castle / US Aluminum' => ['description' => 'Old Castle / US Aluminum storefront and commercial glazing product reference.'],
+                    'ShadePro Shade Systems' => ['description' => 'ShadePro shade system product reference and sales support.'],
+                    'Four Seasons Patio Systems' => ['description' => 'Four Seasons patio and sunroom system product reference and sales support.'],
+                    'Rollock Security Shutters' => ['description' => 'Rollock security shutter product reference and sales support.'],
                     'SmartTint' => ['description' => 'SmartTint product reference and sales support.'],
                     'Andersen' => ['description' => 'Andersen windows and doors product reference and sales support.'],
                     'Pella' => ['description' => 'Pella windows and doors product reference and sales support.'],

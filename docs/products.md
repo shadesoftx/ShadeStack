@@ -36,6 +36,31 @@ Keep it focused on product families, collection pages, or the closest official h
 - [Safety & Security Window Film Technical Data](https://multimedia.3m.com/mws/media/1704931O/safety-s70.pdf) - Security film reference.
 - [Envision Window Film](https://www.3m.com/3M/en_US/home-window-solutions-us/envision-window-film/) - Residential film line page.
 
+## Accent
+
+### Accent
+- Accent / 3M Distribution - Distributor path for 3M climate control, privacy control, and security film resources. Public product URLs pending rep confirmation.
+
+## Sunbelt
+
+### Sunbelt
+- Sunbelt / Avery Dennison Distribution - Distributor path for Avery Dennison climate control, privacy control, and security film resources. Public product URLs pending rep confirmation.
+
+## Avery Dennison
+
+### Avery Dennison
+- Avery Dennison Architectural Window Films - Climate control, privacy control, and safety film product family. Official source pending rep confirmation.
+
+## Somfy
+
+### Somfy
+- Somfy Motorization - Motorization and control platform for shades and exterior systems. Official product source pending rep confirmation.
+
+## Vantis
+
+### Vantis
+- Vantis Control Systems - Home automation and shade-control reference. Official product source pending rep confirmation.
+
 ## Hunter Douglas
 
 ### Hunter Douglas
@@ -120,6 +145,51 @@ Keep it focused on product families, collection pages, or the closest official h
 - [Roof Systems](https://eclipseshading.com/shading-products/) - Louvered roof system family.
 - [Eclipse Product Comparison](https://eclipseshading.com/wp-content/uploads/Eclipse-Product-Comparison-v8.24.pdf) - Product comparison guide.
 - [Exterior Screens](https://eclipseshading.com/wp-content/uploads/EAS_ExteriorScreens.pdf) - Exterior screen reference.
+
+## Austin Screens
+
+### Austin Screens
+- Austin Screens Solar Screens - Solar screen product reference for climate and privacy control. Official product source pending rep confirmation.
+
+## Draper
+
+### Draper
+- Draper Shades and Solar Control - Shade, screen, and solar-control product reference. Official product source pending rep confirmation.
+
+## Decorative Films
+
+### Decorative Films
+- Decorative Films Privacy Films - Decorative and privacy film product family. Official product source pending rep confirmation.
+
+## SolX
+
+### SolX
+- SolX Decorative Film - Decorative and privacy film reference. Official product source pending rep confirmation.
+
+## Frost
+
+### Frost
+- Frost Privacy Film - Frosted privacy film reference. Official product source pending rep confirmation.
+
+## Old Castle / US Aluminum
+
+### Old Castle / US Aluminum
+- Old Castle / US Aluminum Storefront Systems - Commercial storefront and glazing system reference. Official product source pending rep confirmation.
+
+## ShadePro Shade Systems
+
+### ShadePro Shade Systems
+- ShadePro Patio Shade Systems - Patio shade and extension system reference. Official product source pending rep confirmation.
+
+## Four Seasons Patio Systems
+
+### Four Seasons Patio Systems
+- Four Seasons Patio Rooms and Enclosures - Patio room, enclosure, and extension system reference. Official product source pending rep confirmation.
+
+## Rollock Security Shutters
+
+### Rollock Security Shutters
+- Rollock Rolling Security Shutters - Security shutter product reference for safety and security projects. Official product source pending rep confirmation.
 
 ## SmartTint
 

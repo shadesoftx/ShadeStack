@@ -13,6 +13,8 @@ class ShadesOfTexasStructureSeederTest extends TestCase
 {
     public function test_structure_seeder_creates_the_sales_hub_tree(): void
     {
+        config(['app.url' => 'https://bookstack-sotx.test']);
+
         app(ShadesOfTexasStructureSeeder::class)->run();
 
         $shelf = Bookshelf::query()->where('name', '=', 'High Level')->firstOrFail();
@@ -22,13 +24,27 @@ class ShadesOfTexasStructureSeederTest extends TestCase
         $this->assertContains('Residential', $bookNames);
         $this->assertContains('Commercial', $bookNames);
         $this->assertContains('Vendors', $bookNames);
+        $this->assertNotContains('Products', $bookNames);
         $this->assertNotContains('Specs & Drawings', $bookNames);
         $this->assertNotContains('Warranty / Compliance', $bookNames);
         $this->assertNotContains('Reference / FAQs', $bookNames);
 
         $startHere = $shelf->books()->where('name', '=', 'Start Here')->firstOrFail();
         $this->assertEquals(
-            ['Source of Truth', 'How to Use This Hub', 'Where to Find Product Info and Pricing', 'How to Request Missing Documents', 'Sales Hub Home'],
+            [
+                'Start Here',
+                'Source of Truth',
+                'How to Use This Hub',
+                'Where to Find Product Info and Pricing',
+                'How to Request Missing Documents',
+                'System Categories',
+                'Climate Control',
+                'Privacy Control',
+                'Patio Extension',
+                'Security and Safety',
+                'Home Automation & Control',
+                'Sales Hub Home',
+            ],
             Page::query()
                 ->where('book_id', '=', $startHere->id)
                 ->orderBy('priority')
@@ -36,11 +52,34 @@ class ShadesOfTexasStructureSeederTest extends TestCase
                 ->all()
         );
 
+        $startHereTaskPage = Page::query()
+            ->where('book_id', '=', $startHere->id)
+            ->where('name', '=', 'Start Here')
+            ->firstOrFail();
+        foreach ([
+            'Find Product',
+            'Check Warranty',
+            'Get Specs',
+            'Install Guide',
+            'Brochure / Collateral',
+            'Pricing / Portal',
+            'Rep Contact',
+            'Request Update',
+        ] as $taskLabel) {
+            $this->assertStringContainsString($taskLabel, $startHereTaskPage->html);
+        }
+        $this->assertStringContainsString('sotx-task-card', $startHereTaskPage->html);
+        $this->assertStringContainsString('customer need', strtolower($startHereTaskPage->html));
+        $this->assertStringContainsString('1Password', $startHereTaskPage->html);
+        $this->assertStringNotContainsString('http://localhost', $startHereTaskPage->html);
+
         $sourceOfTruthPage = Page::query()
             ->where('book_id', '=', $startHere->id)
             ->where('name', '=', 'Source of Truth')
             ->firstOrFail();
         $this->assertStringContainsString('Core Books', $sourceOfTruthPage->html);
+        $this->assertStringContainsString('Navigation Model', $sourceOfTruthPage->html);
+        $this->assertStringContainsString('Customer Need -&gt; System Category -&gt; Residential/Commercial Category -&gt; Product/Vendor Page -&gt; Official Source', $sourceOfTruthPage->html);
         $this->assertStringContainsString('Start Here', $sourceOfTruthPage->html);
         $this->assertStringContainsString('Residential', $sourceOfTruthPage->html);
         $this->assertStringContainsString('Commercial', $sourceOfTruthPage->html);
@@ -62,6 +101,9 @@ class ShadesOfTexasStructureSeederTest extends TestCase
         $this->assertStringContainsString('Pick the Right Lane', $howToUsePage->html);
         $this->assertStringContainsString('Common Lookup Paths', $howToUsePage->html);
         $this->assertStringContainsString('When to Slow Down', $howToUsePage->html);
+        $this->assertStringContainsString('System Categories', $howToUsePage->html);
+        $this->assertStringContainsString('Customer describes an outcome', $howToUsePage->html);
+        $this->assertStringContainsString('Do not duplicate specs, warranties, contacts, dealer portals, install guides, or collateral', $howToUsePage->html);
         $this->assertStringContainsString('Customer asks about warranty', $howToUsePage->html);
         $this->assertStringContainsString('Vendors', $howToUsePage->html);
         $this->assertStringContainsString('Residential', $howToUsePage->html);
@@ -89,6 +131,29 @@ class ShadesOfTexasStructureSeederTest extends TestCase
         $this->assertStringContainsString('Source of Truth', $missingDocsPage->html);
         $this->assertStringContainsString('pricing, warranty, install detail, product fit, or customer answer', $missingDocsPage->html);
 
+        $systemCategoriesPage = Page::query()
+            ->where('book_id', '=', $startHere->id)
+            ->where('name', '=', 'System Categories')
+            ->firstOrFail();
+        $systemVendorMap = [
+            'Climate Control' => ['Somfy', 'Vantis', 'Accent', '3M', 'Sunbelt', 'Avery Dennison', 'Alta', 'Hunter Douglas', 'Austin Screens', 'Draper'],
+            'Privacy Control' => ['Decorative Films', 'SolX', 'Frost', 'Accent', '3M', 'Sunbelt', 'Avery Dennison', 'Alta', 'Hunter Douglas', 'Austin Screens', 'Draper'],
+            'Patio Extension' => ['Old Castle / US Aluminum', 'Andersen', 'JELD-WEN', 'ShadePro Shade Systems', 'Four Seasons Patio Systems', 'Eclipse'],
+            'Security and Safety' => ['Accent', '3M', 'Sunbelt', 'Avery Dennison', 'Rollock Security Shutters'],
+            'Home Automation & Control' => ['Somfy', 'Vantis'],
+        ];
+        foreach (array_keys($systemVendorMap) as $systemCategoryName) {
+            $systemCategoryPage = Page::query()
+                ->where('book_id', '=', $startHere->id)
+                ->where('name', '=', $systemCategoryName)
+                ->firstOrFail();
+
+            $this->assertStringContainsString($systemCategoryPage->getUrl(), $systemCategoriesPage->html);
+            $this->assertStringContainsString('Sales Categories', $systemCategoryPage->html);
+            $this->assertStringContainsString('Vendor/Product Source Pages', $systemCategoryPage->html);
+            $this->assertStringContainsString('Choose a sales category first', $systemCategoryPage->html);
+        }
+
         $residential = $shelf->books()->where('name', '=', 'Residential')->firstOrFail();
         $this->assertEquals(
             ['Tint & Film', 'Window Treatments', 'Outdoor Living', 'Glass & Windows'],
@@ -103,10 +168,24 @@ class ShadesOfTexasStructureSeederTest extends TestCase
         $vendors = $shelf->books()->where('name', '=', 'Vendors')->firstOrFail();
         $expectedVendorNames = [
             '3M',
+            'Accent',
+            'Sunbelt',
+            'Avery Dennison',
+            'Somfy',
+            'Vantis',
             'Hunter Douglas',
             'Alta',
             'Norman',
             'Eclipse',
+            'Austin Screens',
+            'Draper',
+            'Decorative Films',
+            'SolX',
+            'Frost',
+            'Old Castle / US Aluminum',
+            'ShadePro Shade Systems',
+            'Four Seasons Patio Systems',
+            'Rollock Security Shutters',
             'SmartTint',
             'Andersen',
             'Pella',
@@ -136,6 +215,33 @@ class ShadesOfTexasStructureSeederTest extends TestCase
         $this->assertStringContainsString('Vendors', $safetyFilmPage->html);
         $this->assertStringContainsString(Page::query()->where('book_id', '=', $vendors->id)->where('name', '=', '3M')->firstOrFail()->getUrl(), $safetyFilmPage->html);
 
+        $climateControlPage = Page::query()
+            ->where('book_id', '=', $startHere->id)
+            ->where('name', '=', 'Climate Control')
+            ->firstOrFail();
+        $solarFilmPage = Page::query()
+            ->where('book_id', '=', $residential->id)
+            ->where('chapter_id', '=', $tintFilm->id)
+            ->where('name', '=', 'Solar Film')
+            ->firstOrFail();
+        $this->assertStringContainsString($solarFilmPage->getUrl(), $climateControlPage->html);
+        $this->assertStringContainsString(Page::query()->where('book_id', '=', $vendors->id)->where('name', '=', '3M')->firstOrFail()->getUrl(), $climateControlPage->html);
+        $this->assertStringContainsString(Page::query()->where('book_id', '=', $vendors->id)->where('name', '=', 'Somfy')->firstOrFail()->getUrl(), $climateControlPage->html);
+        foreach ($systemVendorMap as $systemCategoryName => $vendorNames) {
+            $systemCategoryPage = Page::query()
+                ->where('book_id', '=', $startHere->id)
+                ->where('name', '=', $systemCategoryName)
+                ->firstOrFail();
+
+            foreach ($vendorNames as $vendorName) {
+                $this->assertStringContainsString(
+                    Page::query()->where('book_id', '=', $vendors->id)->where('name', '=', $vendorName)->firstOrFail()->getUrl(),
+                    $systemCategoryPage->html,
+                    $systemCategoryName . ' should link to ' . $vendorName
+                );
+            }
+        }
+
         $vendorOverviewPages = [];
         foreach ($expectedVendorNames as $vendorName) {
             $vendorChapter = Chapter::query()
@@ -157,6 +263,19 @@ class ShadesOfTexasStructureSeederTest extends TestCase
             $this->assertStringContainsString('Warranty Information', $vendorOverviewPage->html);
             $this->assertStringContainsString('FAQs', $vendorOverviewPage->html);
             $this->assertStringContainsString('Source Inventory', $vendorOverviewPage->html);
+            $this->assertStringContainsString('Sales Resource Inventory', $vendorOverviewPage->html);
+            $this->assertStringContainsString('Install Guide', $vendorOverviewPage->html);
+            $this->assertStringContainsString('Dealer Portal', $vendorOverviewPage->html);
+            $this->assertStringContainsString('Spec Sheets &amp; BIM', $vendorOverviewPage->html);
+            $this->assertStringContainsString('Samples &amp; Swatches', $vendorOverviewPage->html);
+            $this->assertStringContainsString('Pricing', $vendorOverviewPage->html);
+            $this->assertStringContainsString('Training &amp; Certification', $vendorOverviewPage->html);
+            $this->assertStringContainsString('Rep Contact', $vendorOverviewPage->html);
+            $this->assertStringContainsString('Audited', $vendorOverviewPage->html);
+            $this->assertStringContainsString('Login Required', $vendorOverviewPage->html);
+            $this->assertStringContainsString('Pending', $vendorOverviewPage->html);
+            $this->assertStringContainsString('Rep Confirm Needed', $vendorOverviewPage->html);
+            $this->assertStringContainsString('Broken / Replace', $vendorOverviewPage->html);
             $this->assertLessThan(strpos($vendorOverviewPage->html, 'Warranty Information'), strpos($vendorOverviewPage->html, 'Products'));
             $this->assertLessThan(strpos($vendorOverviewPage->html, 'FAQs'), strpos($vendorOverviewPage->html, 'Warranty Information'));
             $this->assertLessThan(strpos($vendorOverviewPage->html, 'Quick Links'), strpos($vendorOverviewPage->html, 'FAQs'));
@@ -203,8 +322,11 @@ class ShadesOfTexasStructureSeederTest extends TestCase
                 $this->assertStringContainsString('FAQs', $vendorProductPage->html);
                 $this->assertStringContainsString('Quick Links', $vendorProductPage->html);
                 $this->assertStringContainsString('Vendor Hub', $vendorProductPage->html);
+                $this->assertStringContainsString('Audited', $vendorProductPage->html);
+                $this->assertStringContainsString('Rep Confirm Needed', $vendorProductPage->html);
                 $this->assertStringNotContainsString('Product Notes', $vendorProductPage->html);
                 $this->assertStringNotContainsString('Sales Notes', $vendorProductPage->html);
+                $this->assertStringNotContainsString('http://localhost', $vendorProductPage->html);
             }
         }
 
@@ -425,13 +547,33 @@ class ShadesOfTexasStructureSeederTest extends TestCase
         $homeVisit = $this->actingAs($this->users->admin())->get('/');
         $homeVisit->assertSee('High Level');
         $homeVisit->assertSee('Find the right answer fast.');
+        $homeVisit->assertSee('System Categories');
+        $homeVisit->assertSee('Climate Control');
+        $homeVisit->assertSee('Privacy Control');
+        $homeVisit->assertSee('Patio Extension');
+        $homeVisit->assertSee('Security and Safety');
+        $homeVisit->assertSee('Home Automation &amp; Control', false);
         $homeVisit->assertSee('Safety & Security Film');
         $homeVisit->assertSee('Solar Film');
         $homeVisit->assertSee('Privacy Film');
         $homeVisit->assertSee('35+ Years');
         $homeVisit->assertSee($homePage->name);
+        $this->assertStringContainsString($startHereTaskPage->getUrl(), $homePage->html);
+        $this->assertStringNotContainsString($startHere->getUrl() . '" class="sotx-pill">Start Here', $homePage->html);
+        $this->assertStringNotContainsString('http://localhost', $homePage->html);
+        $this->assertStringContainsString('Open Task Buttons', $homePage->html);
+        $this->assertStringNotContainsString('How to Use the Hub', $homePage->html);
+
+        $customHead = DB::table('settings')->where('setting_key', '=', 'app-custom-head')->value('value');
+        $this->assertStringContainsString('--sotx-radius: 8px', $customHead);
+        $this->assertStringContainsString('@media (max-width: 860px)', $customHead);
+        $this->assertStringContainsString('@media (max-width: 560px)', $customHead);
+        $this->assertStringNotContainsString('letter-spacing: -', $customHead);
+        $this->assertStringNotContainsString('border-radius: 1.25rem', $customHead);
+        $this->assertStringNotContainsString('box-shadow:', $customHead);
 
         $admin = $this->users->admin();
+        $this->actingAs($admin)->get($startHereTaskPage->getUrl())->assertOk();
         $this->actingAs($admin)->get($residential->getUrl())->assertOk();
         $this->actingAs($admin)->get($tintFilm->getUrl())->assertOk();
         $this->actingAs($admin)->get($safetyFilmPage->getUrl())->assertOk();

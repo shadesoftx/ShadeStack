@@ -1,356 +1,296 @@
 # Navigation & Structure
 
-This document defines how the Shades of Texas internal knowledge base is organized, how people move through it, and how every page should be built. It is the blueprint for anyone adding or editing content.
+This document defines how the Shades of Texas internal knowledge base is organized, how people move through it, and how every page should be built. It is the structural source of truth for the sales hub.
+
+The navigation model is:
+
+```text
+Customer Need -> System Category -> Residential/Commercial Category -> Product/Vendor Page -> Official Source
+```
+
+The hub should feel like a practical sales map, not a file cabinet.
 
 ---
 
-## The goal
-
-A salesperson in front of a customer should be able to open this hub on their phone and get to the right spec sheet, warranty summary, or sales answer in two taps. No guessing. No learning a folder structure. No dead ends.
-
-Everything in this document serves that goal.
-
----
-
-## The hierarchy
+## Core hierarchy
 
 BookStack has four layers:
 
 | Layer | Our name | Purpose |
 |---|---|---|
-| Bookshelf | `High Level` | The single top-level container for everything |
-| Book | `Residential`, `Commercial`, `Products`, `Start Here` | Major business areas — the main nav |
-| Chapter | `Tint & Film`, `Window Treatments`, etc. | Service families within each book |
-| Page | `Home Window Tint`, `3M`, `Awnings`, etc. | The actual content a salesperson reads |
+| Bookshelf | `High Level` | Single top-level container for the hub |
+| Book | `Start Here`, `Residential`, `Commercial`, `Vendors` | Main navigation areas |
+| Chapter | `Tint & Film`, `Window Treatments`, vendor names, etc. | Grouping layer inside a book |
+| Page | `Climate Control`, `Window Glass`, `Andersen`, etc. | Actual content and routing pages |
 
----
+Only these four books should appear as operational top-level areas:
 
-## The structure
-
-Four books. That is all that appears in the main sidebar. Everything lives inside one of these.
-
-```
-High Level (Shelf)
-│
+```text
+High Level
 ├── Start Here
-│   ├── How to use this hub
-│   ├── Source of Truth
-│   ├── Sales workflow overview
-│   └── Request a missing resource
-│
 ├── Residential
-│   ├── Tint & Film
-│   │   ├── Home Window Tint
-│   │   ├── Safety & Security Film
-│   │   └── Privacy Film
-│   ├── Window Treatments
-│   │   ├── Window Shades
-│   │   ├── Shutters
-│   │   └── Blinds
-│   ├── Outdoor Living
-│   │   ├── Awnings
-│   │   └── Patio Screens
-│   └── Glass & Windows
-│       ├── Glass Replacement
-│       └── Window Replacement
-│
 ├── Commercial
-│   ├── Solar Control & Safety
-│   ├── Window Treatments
-│   ├── Patio Screens & Awnings
-│   └── Glass & Windows
-│
-└── Products
-    ├── 3M
-    ├── Hunter Douglas
-    ├── Alta
-    ├── Norman
-    ├── Eclipse
-    ├── SmartTint
-    ├── Andersen
-    ├── Pella
-    ├── CRL
-    ├── Dallas Flat Glass
-    ├── Ghost Glass
-    ├── JELD-WEN
-    │
-    ├── [Chapter] Specs & Drawings
-    ├── [Chapter] Warranty / Compliance
-    └── [Chapter] Reference / FAQs
+└── Vendors
 ```
 
-### Why only four books in the sidebar
-
-Seven top-level books is too many for someone navigating on a phone mid-appointment. The previous structure had `Specs & Drawings`, `Warranty / Compliance`, and `Reference / FAQs` as top-level books, which forced reps to decide between seven options every time they opened the hub.
-
-Those three are now chapters inside `Products`. They are reference material — not primary navigation destinations. Reps reach them from a category page or by searching, not by browsing.
+Do not create separate top-level books for specs, warranties, FAQs, training, or collateral. Those resources belong on the relevant vendor or product page and are reached through internal links.
 
 ---
 
-## How navigation works
+## Page jobs
 
-### The expected click path
+Every page has one job.
 
-```
-Home page
-  → tap a service tile (Residential / Commercial)
-    → open the relevant chapter (Tint & Film, Window Treatments, etc.)
-      → open the category page (Home Window Tint, Awnings, etc.)
-        → follow a brand card to a product page (3M, Eclipse, etc.)
-          → open the spec sheet, warranty doc, or FAQ from there
-```
-
-### The home page
-
-The home page is not a final destination. It is a launcher.
-
-It should contain:
-- A search bar, front and center
-- Four large tiles: `Residential` · `Commercial` · `Products` · `Start Here`
-- Nothing else
-
-A salesperson who opens the hub in front of a customer should be able to tap one tile and be one level away from what they need. No scrolling, no reading, no learning a structure.
-
-### Search is always available
-
-Full-text search in BookStack indexes everything — page titles, body text, and attachment names. Reps who know what they are looking for (a brand name, a product line, a warranty term) should use search first. The navigation structure exists for browsing, not as a replacement for search.
+| Page type | Job | Should contain | Should not contain |
+|---|---|---|---|
+| System Category page | Route by customer outcome | Relevant services, vendors, and products | Full specs, warranty text, portal credentials |
+| Residential/Commercial page | Route by sales workflow | Sales context and vendor/product chips | Duplicated vendor documentation |
+| Vendor page | Vendor source of truth | Contacts, official links, warranties, FAQs, source inventory, dealer portal references, collateral | Repeated service-category explanations |
+| Product page | Product-line source of truth | Summary, fit, related lines, quick links, warranty/FAQ paths | Unrelated vendor catalog content |
+| Start Here page | Usage and governance | How to navigate, request changes, and verify sources | Product detail |
 
 ---
 
-## Service-to-brand mapping
+## System categories
 
-Every category page links directly to the relevant brand pages in `Products`. This is the bridge between service navigation and product detail. Reps should never have to open a separate book to find which brands apply to a given service.
+The five System Categories live under `Start Here`. They are the first customer-need layer and should route users into the existing Residential, Commercial, and Vendors pages.
 
-| Service category | Brands |
-|---|---|
-| Home Window Tint | 3M, SmartTint |
-| Safety & Security Film | 3M |
-| Privacy Film | SmartTint, Ghost Glass |
-| Window Shades | Hunter Douglas, Alta, Norman |
-| Shutters | Hunter Douglas, Norman |
-| Blinds | Hunter Douglas, Alta, Norman |
-| Awnings | Eclipse |
-| Patio Screens | Eclipse |
-| Glass Replacement | CRL, Dallas Flat Glass |
-| Window Replacement | Andersen, Pella, JELD-WEN |
-| Solar Control & Safety (Commercial) | 3M, SmartTint |
-| Window Treatments (Commercial) | Hunter Douglas, Alta, Norman |
-| Patio Screens & Awnings (Commercial) | Eclipse |
-| Glass & Windows (Commercial) | Pella, Andersen, JELD-WEN, CRL, Dallas Flat Glass |
+| System category | Description | Examples |
+|---|---|---|
+| Climate Control | Reduce heat, glare, and energy load. | Somfy, Vantis, Accent/3M, Sunbelt/Avery Dennison, Alta, Hunter Douglas, Austin Screens, Draper |
+| Privacy Control | Create privacy without sacrificing design. | Decorative Films, SolX, Frost, Accent/3M, Sunbelt/Avery Dennison, Alta, Hunter Douglas, Austin Screens, Draper |
+| Patio Extension | Extend indoor comfort into outdoor living. | Old Castle / US Aluminum, Andersen, JELD-WEN, ShadePro Shade Systems, Four Seasons Patio Systems, Eclipse |
+| Security and Safety | Protect people, property, and peace of mind. | Accent/3M, Sunbelt/Avery Dennison, Rollock Security Shutters |
+| Home Automation & Control | Automate comfort, light, shade, and privacy. | Somfy, Vantis |
+
+System pages are navigation pages. They should summarize the need, list common examples, link to matching sales categories, and link to relevant vendor/product pages.
 
 ---
 
-## Standard page templates
+## Expected click paths
 
-Every page in this hub follows one of two templates depending on whether it is a **category page** or a **brand page**. Using the same layout every time means reps always know where to look, regardless of which page they land on.
+When the customer describes a problem:
 
----
-
-### Template A — Category page
-
-Use this for every page inside `Residential` and `Commercial` (e.g. `Home Window Tint`, `Awnings`, `Window Shades`).
-
+```text
+Home
+  -> System Category
+    -> Residential or Commercial category
+      -> Vendor or product page
+        -> Official source link, warranty, install guide, collateral, or dealer portal
 ```
-# [Category Name]
 
-## Overview
-1–2 sentences. What is this product or service, and who is it for?
-Residential or commercial context. Key benefit in plain language.
+When the rep already knows the vendor:
 
-## Brands for this category
-Inline brand cards linking directly to the brand page in Products.
-Example: [3M] [SmartTint]
+```text
+Home
+  -> Vendors
+    -> Vendor page
+      -> Product line
+        -> Official source
+```
 
-## Spec Sheets
-Direct links to the 2–3 most relevant spec PDFs for this category.
-Pull these from the brand pages in Products — do not duplicate files.
+When something looks stale:
 
-## Warranty Summary
-- Coverage: [X years / lifetime / limited]
-- Key exclusions: [brief note]
-- Full warranty: [link to brand warranty page]
-
-## Common Sales Questions
-Q: [Question a customer actually asks]
-A: [Direct answer a rep can say out loud]
-
-Q: [Second question]
-A: [Answer]
-
-Q: [Third question]
-A: [Answer]
-
-## Related Categories
-See also: [linked page] · [linked page]
+```text
+Page with bad/missing info
+  -> Source of Truth
+    -> Official vendor source
+      -> Update vendor/product page
+        -> Update affected routing pages only if positioning changed
 ```
 
 ---
 
-### Template B — Brand page
+## Book structure
 
-Use this for every page inside `Products` (e.g. `3M`, `Hunter Douglas`, `Eclipse`).
+### Start Here
 
-```
-# [Brand Name]
+- Start Here
+- Sales Hub Home
+- System Categories
+- Climate Control
+- Privacy Control
+- Patio Extension
+- Security and Safety
+- Home Automation & Control
+- Source of Truth
+- How to Use This Hub
+- Where to Find Product Info and Pricing
+- How to Request Missing Documents
 
-## Overview
-1–2 sentences. What does this brand make, and where does it fit in our
-service offering? Which service categories use this brand?
+The `Start Here` page should be a task-button landing page, not the default BookStack book list. Its primary buttons are Find Product, Check Warranty, Get Specs, Install Guide, Brochure / Collateral, Pricing / Portal, Rep Contact, and Request Update.
 
-## Products we carry
-- [Product line 1] — [one-line description]
-- [Product line 2] — [one-line description]
-- [Product line 3] — [one-line description]
+### Residential
 
-## Spec Sheets & Tech Data
-- [Spec sheet name] — [direct link or attached PDF]
-- [Tech data sheet] — [direct link or attached PDF]
+- Tint & Film
+  - Safety & Security Film
+  - Solar Film
+  - Privacy Film
+- Window Treatments
+  - Window Shades
+  - Window Shutters
+  - Window Blinds
+  - Safety / Storm Shutters
+- Outdoor Living
+  - Shade Structures
+  - Patio Awnings
+  - Patio Screens
+- Glass & Windows
+  - Window Glass
+  - Frameless Showers
+  - Window Cleaning
 
-## Architect & BIM Resources
-- [CAD / Revit / BIM link if applicable]
-- [Architectural drawing link if applicable]
+### Commercial
 
-## Warranties
-- [Warranty name]: [coverage summary]
-- [Full warranty link]
+- Solar Control & Safety
+  - Sun Control Film
+  - Safety & Security Film
+  - Privacy Film
+  - SmartTint
+- Patio Screens & Awnings
+  - Patio Awnings
+  - Patio Screens
+- Glass & Windows
+  - Commercial Glazing
+- Window Treatments
+  - Roller Shades
 
-## Installation Resources
-- [Install guide link]
-- [How-to video link]
+### Vendors
 
-## Pricing
-- [Portal name]: [link] (login required)
-- [Notes on how to get a quote]
+Vendor chapters contain a vendor overview page plus product-line pages.
 
-## Dealer Portal
-- [Portal name]: [link]
-- [Notes on access / login]
+Current vendor chapters:
 
-## Samples & Swatches
-- [How to order samples]
-- [Rep contact for sample requests]
-
-## Training & Certification
-- [Certification name]: [what it means, how to get it]
-- [Selling point: what this certification means for the customer]
-
-## Sales Notes
-Key selling points, differentiators, and things that come up in the field.
-This is the section reps actually read before a call or appointment.
-
-## Rep Contact
-- Name:
-- Phone:
-- Email:
-
-## External Links
-- [Home]
-- [Support]
-- [Warranty]
-- [Dealer Portal]
-```
+- 3M
+- Accent
+- Sunbelt
+- Avery Dennison
+- Somfy
+- Vantis
+- Hunter Douglas
+- Alta
+- Norman
+- Eclipse
+- Austin Screens
+- Draper
+- Decorative Films
+- SolX
+- Frost
+- Old Castle / US Aluminum
+- ShadePro Shade Systems
+- Four Seasons Patio Systems
+- Rollock Security Shutters
+- SmartTint
+- Andersen
+- Pella
+- CRL
+- Dallas Flat Glass
+- Ghost Glass
+- JELD-WEN
 
 ---
 
 ## Internal linking rules
 
-These rules keep the navigation consistent as content grows.
-
-### Always link to the right level
+### Link to the right level
 
 | If you want to send someone to... | Link to... |
 |---|---|
-| A service overview | The chapter (e.g. `/books/residential/chapter/tint-film`) |
-| A specific product or category | The page (e.g. `/books/residential/page/home-window-tint`) |
-| A brand reference | The brand page in Products (e.g. `/books/products/page/3m`) |
-| A document or spec sheet | The attached file on the brand page, not a raw URL |
+| A customer outcome | A System Category page under `Start Here` |
+| A service family | A Residential or Commercial chapter |
+| A specific sales category | A Residential or Commercial page |
+| A vendor reference | The vendor overview page in `Vendors` |
+| A product line | The product page under that vendor chapter |
+| A warranty, FAQ, portal, install guide, or collateral source | The relevant vendor/product page section |
 
-### Brand cards on category pages
+### Keep external links canonical
 
-Every category page must have inline brand cards in the `Brands for this category` section. These are links to brand pages in `Products`, not to external websites. External links live on the brand page itself.
+Residential, Commercial, and System Category pages should use internal links first. External vendor links belong on vendor and product pages so updates happen in one place.
 
+Correct:
+
+```text
+Climate Control -> Solar Film -> 3M product page -> official 3M source
 ```
-Correct:   [3M] → /books/products/page/3m
-Incorrect: [3M] → https://www.3m.com/...
+
+Incorrect:
+
+```text
+Climate Control -> official 3M warranty PDF
 ```
 
-### Spec sheets and documents
+### Do not duplicate vendor facts
 
-Attach PDFs directly to the relevant brand page in BookStack using the attachment feature. Link to the BookStack attachment, not to an external URL. This way documents stay available even if a vendor's website changes.
+Do not repeat these across routing pages:
 
-Exception: for documents that update frequently (warranty pages, pricing portals), link to the live vendor URL and note "check for current version."
+- Vendor contacts
+- Dealer portal URLs
+- Dealer credentials
+- Warranty details
+- Technical specifications
+- Installation guides
+- Training links
+- Sales and marketing collateral
+- FAQ/support links
 
-### Cross-links between Residential and Commercial
+Routing pages can mention that these resources exist, but they should link to the vendor or product page that owns them.
 
-Where the same brand or product appears in both Residential and Commercial, link to the shared brand page in Products rather than duplicating content. Category pages summarize; brand pages hold the detail.
+### Dealer portal credentials
+
+BookStack may list the dealer portal URL and the internal credential reference. Actual usernames, passwords, recovery codes, and shared credentials must live in 1Password.
+
+Use this pattern:
+
+```text
+Dealer Portal: https://vendor.example.com/login
+Credentials: 1Password -> Vendor Portals / Vendor Name
+```
 
 ---
 
-## Canonical URL patterns
+## Service-to-vendor map
 
-These are the URL formats BookStack generates. Use them when sharing links with the team.
-
-```
-Home page:          https://resources.shadesoftx.com/
-Residential book:   https://resources.shadesoftx.com/books/residential
-Chapter:            https://resources.shadesoftx.com/books/residential/chapter/tint-film
-Category page:      https://resources.shadesoftx.com/books/residential/page/home-window-tint
-Products book:      https://resources.shadesoftx.com/books/products
-Brand page:         https://resources.shadesoftx.com/books/products/page/3m
-Specs chapter:      https://resources.shadesoftx.com/books/products/chapter/specs-and-drawings
-```
-
-Local development URLs follow the same pattern with `https://bookstack-sotx.test/` as the base.
+| Service category | Vendors |
+|---|---|
+| Safety & Security Film | Accent, 3M, Sunbelt, Avery Dennison |
+| Solar Film | Accent, 3M, Sunbelt, Avery Dennison |
+| Privacy Film | Decorative Films, SolX, Frost, Accent, 3M, Sunbelt, Avery Dennison |
+| Window Shades | Somfy, Vantis, Hunter Douglas, Alta, Draper, Norman |
+| Window Shutters | Hunter Douglas, Alta, Norman |
+| Window Blinds | Hunter Douglas, Alta, Norman |
+| Safety / Storm Shutters | Rollock Security Shutters, Norman |
+| Shade Structures | ShadePro Shade Systems, Four Seasons Patio Systems, Eclipse |
+| Patio Awnings | ShadePro Shade Systems, Four Seasons Patio Systems, Eclipse |
+| Patio Screens | Austin Screens, Draper, ShadePro Shade Systems, Eclipse |
+| Window Glass | Old Castle / US Aluminum, Andersen, JELD-WEN, Pella, Dallas Flat Glass |
+| Frameless Showers | CRL |
+| Sun Control Film | Accent, 3M, Sunbelt, Avery Dennison |
+| SmartTint | SmartTint |
+| Commercial Glazing | Old Castle / US Aluminum, Andersen, JELD-WEN, CRL, Pella, Dallas Flat Glass |
+| Roller Shades | Somfy, Vantis, Hunter Douglas, Alta, Draper, Norman |
 
 ---
 
-## Content priority order
+## Content priority
 
-Build content in this order. Start with the skeleton, then fill in detail incrementally.
+Build and maintain content in this order:
 
-**Phase 1 — Skeleton (do this first)**
-- [ ] Create all four books
-- [ ] Create all chapters inside Residential and Commercial
-- [ ] Create all brand pages inside Products (empty is fine)
-- [ ] Create Specs & Drawings, Warranty / Compliance, Reference / FAQs as chapters inside Products
-
-**Phase 2 — Category pages**
-- [ ] Write Overview and Brands sections for every category page
-- [ ] Add brand card links (internal links to Products)
-- [ ] Add 3 common sales questions per page
-
-**Phase 3 — Brand pages**
-- [ ] Fill in Overview, Products we carry, and Rep Contact for every brand
-- [ ] Attach spec sheet PDFs to each brand page
-- [ ] Add warranty summaries and links
-- [ ] Add dealer portal and pricing links
-
-**Phase 4 — Polish**
-- [ ] Add architect / BIM resources to applicable brands
-- [ ] Fill in Training & Certification sections
-- [ ] Add Sales Notes to every brand page
-- [ ] Fill in all Rep Contact fields
+1. Confirm the vendor/product source page exists in `Vendors`.
+2. Add or update official links, warranty paths, FAQ links, install/training links, collateral, and portal references there.
+3. Link Residential or Commercial category pages to the vendor/product page.
+4. Link System Category pages to the relevant category and vendor/product pages.
+5. Update `Source of Truth` if the official source map changed.
 
 ---
 
 ## Common mistakes to avoid
 
-- **Linking directly to an external URL from a category page.** External links belong on brand pages only. Category pages link internally.
-- **Creating a new book instead of a chapter.** If content belongs under a service family or under Products, it is a chapter or page, not a new book. Keep the sidebar to four books.
-- **Duplicating content across Residential and Commercial.** If 3M is the brand for both home window tint and commercial solar film, there is one 3M brand page. Both category pages link to it.
-- **Adding a page without following the template.** Templates exist so reps know where to look. A page that skips sections breaks that expectation.
-- **Attaching a file to the wrong page.** Spec sheets and PDFs attach to the brand page, not to category pages. Category pages link to brand pages.
-- **Leaving Rep Contact fields blank long-term.** These are the most important fields in the hub. Make filling them in a priority as you onboard each brand.
-
----
-
-## What this doc is not
-
-- It is not a content-writing guide
-- It is not a full sitemap of every future page
-- It is not a replacement for the README setup instructions
-
-It is the single source of structural truth for how this hub is organized and how pages should be built.
+- Creating a new top-level book for a resource type.
+- Linking from a routing page straight to an external vendor PDF when an internal vendor/product page should own that link.
+- Repeating warranty or spec details across multiple service pages.
+- Putting credentials in BookStack instead of 1Password.
+- Using `Products` as the main area name. The canonical name is `Vendors`.
+- Treating System Categories as content dumps instead of routing pages.
 
 For the master vendor source map, see [docs/source.md](source.md).
-For local setup and deployment, see [docs/readme.md](readme.md).
+For the project overview, see [docs/readme.md](readme.md).
