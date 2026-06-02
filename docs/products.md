@@ -309,7 +309,7 @@ Keep it focused on product families, collection pages, or the closest official h
 - [Benefits](https://ghostglassfilm.com/benefits) - Product benefits overview.
 - [Smart Film DIY](https://ghostglassfilm.com/smart-film-diy) - DIY installation entry point.
 - [Smart Film Installation Guide](https://ghostglassfilm.com/smart-film-installation-guide) - Install reference.
-- [Installation](https://ghostglassfilm.com/installation) - How-to install page.
+- [Installation](https://ghostglassfilm.com/smart-film-installation-guide) - How-to install page.
 - [About Us](https://ghostglassfilm.com/about-us) - Company and product context.
 - [Installations](https://ghostglassfilm.com/installations) - Completed installations and gallery.
 - [FAQ](https://ghostglassfilm.com/faqs-1) - Product and ordering FAQ.

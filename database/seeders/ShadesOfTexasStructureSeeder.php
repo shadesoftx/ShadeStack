@@ -7,7 +7,6 @@ use BookStack\Entities\Models\Bookshelf;
 use BookStack\Entities\Models\Chapter;
 use BookStack\Entities\Models\Page;
 use BookStack\Entities\Repos\BaseRepo;
-use BookStack\Entities\Tools\TrashCan;
 use BookStack\Permissions\JointPermissionBuilder;
 use BookStack\Permissions\Models\RolePermission;
 use BookStack\Permissions\Permission;
@@ -18,6 +17,14 @@ use Illuminate\Support\Facades\URL;
 
 class ShadesOfTexasStructureSeeder extends Seeder
 {
+    /**
+     * Tracks pages created during the current seed so follow-up rendering can
+     * enrich new seed content without clobbering live BookStack edits.
+     *
+     * @var array<int, bool>
+     */
+    protected array $createdPageIds = [];
+
     public function run(): void
     {
         $ownerId = User::query()->where('email', '=', 'admin@admin.com')->value('id')
@@ -95,7 +102,8 @@ class ShadesOfTexasStructureSeeder extends Seeder
                         $inventoryProducts,
                         $brandProfiles[$brandName] ?? []
                     ),
-                    $vendorProductPagePriority
+                    $vendorProductPagePriority,
+                    false
                 );
             }
 
@@ -113,7 +121,8 @@ class ShadesOfTexasStructureSeeder extends Seeder
                     $brandProfiles[$brandName] ?? [],
                     $vendorProductPages
                 ),
-                1
+                1,
+                false
             );
 
             foreach ($vendorProductPages as $productName => $vendorProductPage) {
@@ -130,11 +139,13 @@ class ShadesOfTexasStructureSeeder extends Seeder
                     $vendorProductPages
                 );
 
-                $vendorProductPage->forceFill([
-                    'html' => $finalHtml,
-                    'text' => strip_tags($finalHtml),
-                ])->save();
-                $vendorProductPage->refresh();
+                if (!empty($this->createdPageIds[$vendorProductPage->id])) {
+                    $vendorProductPage->forceFill([
+                        'html' => $finalHtml,
+                        'text' => strip_tags($finalHtml),
+                    ])->save();
+                    $vendorProductPage->refresh();
+                }
             }
         }
 
@@ -729,20 +740,8 @@ HTML;
 
     protected function resetExistingStructure(): void
     {
-        $trashCan = app(TrashCan::class);
-
-        foreach (['Shades of Texas Sales Hub', 'High Level'] as $shelfName) {
-            $existingShelf = Bookshelf::query()->where('name', '=', $shelfName)->first();
-            if (!$existingShelf) {
-                continue;
-            }
-
-            foreach ($existingShelf->books()->get() as $book) {
-                $trashCan->destroyEntity($book);
-            }
-
-            $trashCan->destroyEntity($existingShelf);
-        }
+        // Preserve existing BookStack content. The seeder now upserts structure
+        // and managed routing pages instead of deleting the hub on each run.
     }
 
     protected function createShelf(array $byData): Bookshelf
@@ -750,7 +749,7 @@ HTML;
         $description = 'A world class document management platform';
 
         /** @var Bookshelf $shelf */
-        $shelf = new Bookshelf();
+        $shelf = Bookshelf::query()->where('name', '=', 'High Level')->first() ?? new Bookshelf();
         $shelf->forceFill(array_merge($byData, [
             'name'            => 'High Level',
             'description'     => $description,
@@ -764,7 +763,7 @@ HTML;
     protected function createBook(string $name, string $description, array $byData): Book
     {
         /** @var Book $book */
-        $book = new Book();
+        $book = Book::query()->where('name', '=', $name)->first() ?? new Book();
         $book->forceFill(array_merge($byData, [
             'name'             => $name,
             'description'      => $description,
@@ -782,7 +781,10 @@ HTML;
     protected function createChapter(Book $book, string $name, string $description, array $byData): Chapter
     {
         /** @var Chapter $chapter */
-        $chapter = new Chapter();
+        $chapter = Chapter::query()
+            ->where('book_id', '=', $book->id)
+            ->where('name', '=', $name)
+            ->first() ?? new Chapter();
         $chapter->forceFill(array_merge($byData, [
             'book_id'          => $book->id,
             'name'             => $name,
@@ -799,22 +801,39 @@ HTML;
         return $chapter;
     }
 
-    protected function createPage(Book $book, ?Chapter $chapter, string $name, string $summary, array $byData, ?string $customHtml = null, int $priority = 1): Page
+    protected function createPage(Book $book, ?Chapter $chapter, string $name, string $summary, array $byData, ?string $customHtml = null, int $priority = 1, bool $overwriteHtml = true): Page
     {
         $html = $customHtml ?? $this->buildStandardPageHtml($name, $summary);
 
         /** @var Page $page */
-        $page = new Page();
-        $page->forceFill(array_merge($byData, [
-            'book_id'         => $book->id,
-            'chapter_id'      => $chapter?->id,
-            'name'            => $name,
-            'html'            => $html,
-            'text'            => strip_tags($html),
-            'revision_count'  => 1,
-            'editor'          => 'wysiwyg',
-            'priority'        => $priority,
-        ]))->save();
+        $page = Page::query()
+            ->where('book_id', '=', $book->id)
+            ->where('chapter_id', '=', $chapter?->id)
+            ->where('name', '=', $name)
+            ->first();
+
+        $isNewPage = !$page;
+        $page ??= new Page();
+        $hasExistingContent = trim(strip_tags((string) $page->html)) !== '';
+        $pageData = array_merge($byData, [
+            'book_id'        => $book->id,
+            'chapter_id'     => $chapter?->id,
+            'name'           => $name,
+            'revision_count' => $isNewPage ? 1 : max(1, (int) $page->revision_count),
+            'editor'         => 'wysiwyg',
+            'priority'       => $priority,
+        ]);
+
+        if ($overwriteHtml || !$hasExistingContent) {
+            $pageData['html'] = $html;
+            $pageData['text'] = strip_tags($html);
+        }
+
+        $page->forceFill($pageData)->save();
+
+        if ($isNewPage) {
+            $this->createdPageIds[$page->id] = true;
+        }
 
         app(BaseRepo::class)->refreshSlug($page);
         $page->save();
@@ -842,20 +861,20 @@ HTML;
         $systemCategoriesUrl = $this->findPageUrl($pagesByBook, 'Start Here', null, 'System Categories') ?? ($books['Start Here']?->getUrl() ?? '#');
         $warrantyUrl = $this->findPageUrl($pagesByBook, 'Start Here', null, 'Where to Find Product Info and Pricing') ?? ($books['Vendors']?->getUrl() ?? '#');
         $requestUpdateUrl = $this->findPageUrl($pagesByBook, 'Start Here', null, 'How to Request Missing Documents') ?? ($books['Start Here']?->getUrl() ?? '#');
+        $howToUseUrl = $this->findPageUrl($pagesByBook, 'Start Here', null, 'How to Use This Hub') ?? ($books['Start Here']?->getUrl() ?? '#');
         $vendorsUrl = $books['Vendors']?->getUrl() ?? '#';
         $residentialUrl = $books['Residential']?->getUrl() ?? '#';
         $commercialUrl = $books['Commercial']?->getUrl() ?? '#';
-        $hunterDouglasUrl = $vendorPages['Hunter Douglas']?->getUrl() ?? $vendorsUrl;
-        $eclipseUrl = $vendorPages['Eclipse']?->getUrl() ?? $vendorsUrl;
 
         $tasks = [
-            ['title' => 'Find Product', 'summary' => 'Start with customer need, then choose the product or vendor line.', 'url' => $systemCategoriesUrl, 'flag' => 'Start'],
-            ['title' => 'Check Warranty', 'summary' => 'Open vendor warranty paths before using coverage as a selling point.', 'url' => $warrantyUrl, 'flag' => 'Verify'],
-            ['title' => 'Get Specs', 'summary' => 'Use vendor/product source pages for specs, drawings, tech data, and BIM.', 'url' => $vendorsUrl, 'flag' => 'Source'],
-            ['title' => 'Install Guide', 'summary' => 'Jump to vendor install and training resources before advising on field details.', 'url' => $vendorsUrl, 'flag' => 'Install'],
-            ['title' => 'Brochure / Collateral', 'summary' => 'Use current vendor collateral for customer-facing support material.', 'url' => $eclipseUrl, 'flag' => 'Sales'],
-            ['title' => 'Pricing / Portal', 'summary' => 'Use dealer portals or rep-confirmed paths. Credentials stay in 1Password.', 'url' => $hunterDouglasUrl, 'flag' => 'Login'],
-            ['title' => 'Rep Contact', 'summary' => 'Find the vendor contact path when a deal needs support or confirmation.', 'url' => $vendorsUrl, 'flag' => 'Help'],
+            ['title' => 'Find Product', 'summary' => 'Start with the customer need, then choose Residential or Commercial context.', 'url' => $systemCategoriesUrl, 'flag' => 'Start'],
+            ['title' => 'Residential Job', 'summary' => 'Open homeowner categories before narrowing to sources or product details.', 'url' => $residentialUrl, 'flag' => 'Home'],
+            ['title' => 'Commercial Job', 'summary' => 'Open business and facility categories before narrowing to sources.', 'url' => $commercialUrl, 'flag' => 'Biz'],
+            ['title' => 'Check Warranty', 'summary' => 'Use the pricing and product-info guide before quoting coverage.', 'url' => $warrantyUrl, 'flag' => 'Verify'],
+            ['title' => 'Get Specs', 'summary' => 'Use the guide to find specs, drawings, tech data, and BIM from the right source page.', 'url' => $warrantyUrl, 'flag' => 'Source'],
+            ['title' => 'Install Guide', 'summary' => 'Use the guide to find install and training resources without skipping sales context.', 'url' => $warrantyUrl, 'flag' => 'Install'],
+            ['title' => 'Pricing / Portal', 'summary' => 'Use dealer portals or rep-confirmed paths. Credentials stay in 1Password.', 'url' => $warrantyUrl, 'flag' => 'Login'],
+            ['title' => 'Rep Contact', 'summary' => 'Use the hub guide when a deal needs source or rep confirmation.', 'url' => $howToUseUrl, 'flag' => 'Help'],
             ['title' => 'Request Update', 'summary' => 'Report stale links, missing files, unclear warranty, or bad product fit.', 'url' => $requestUpdateUrl, 'flag' => 'Fix'],
         ];
 
@@ -882,8 +901,8 @@ HTML;
     <p>Business, storefront, facility, and commercial project categories.</p>
 </a>
 <a href="{$vendorsUrl}" class="sotx-card sotx-mini-card">
-    <h4>Vendors</h4>
-    <p>Canonical source pages for contacts, portals, specs, warranties, training, and collateral.</p>
+    <h4>Source Library</h4>
+    <p>Use after choosing a service path, when you need official vendor facts.</p>
 </a>
 HTML;
 
@@ -895,7 +914,7 @@ HTML;
                 <p class="sotx-kicker">Start Here</p>
                 <h1>What do you need right now?</h1>
                 <p class="sotx-lede" style="max-width:42rem;">
-                    Pick the task that matches the sales conversation. The buttons route you to the right category or vendor source without making you read the map first.
+                    Pick the task that matches the sales conversation. The first path should be customer need and project type; source pages come in when you need proof, specs, warranty, pricing, or contacts.
                 </p>
             </div>
         </div>
@@ -927,7 +946,7 @@ HTML;
         <div class="sotx-section-head">
             <div>
                 <h2>Browse By Lane</h2>
-                <p class="sotx-note" style="margin:.35rem 0 0;">Use these if you already know the project type or vendor.</p>
+                <p class="sotx-note" style="margin:.35rem 0 0;">Use these if you already know the project type, or need the source library after choosing a lane.</p>
             </div>
         </div>
         <div class="sotx-resource-grid">{$laneCards}</div>
@@ -983,7 +1002,30 @@ HTML;
                             'Do not duplicate specs, warranties, contacts, dealer portals, install guides, or collateral on routing pages.',
                             'Do not promise warranty coverage without checking the exact product line, install conditions, and purchase date.',
                             'Do not use a vendor homepage as proof of warranty terms unless the vendor does not publish a public warranty page and the page says to confirm directly.',
-                            'If a link looks stale, use Source of Truth to find the official vendor path and update the vendor page afterward.',
+                            'If a link looks stale, correct the vendor/product page in BookStack after verifying the official source or rep response.',
+                        ],
+                    ],
+                    [
+                        'title' => 'Page Jobs',
+                        'summary' => 'Every page has one job so the hub stays easy to maintain.',
+                        'points' => [
+                            'System Category pages route by customer outcome; they do not hold full specs, warranty text, or portal credentials.',
+                            'Residential and Commercial pages route by sales workflow and should link into vendor/product pages instead of repeating vendor documentation.',
+                            'Vendor pages own contacts, official links, warranties, FAQs, dealer-portal references, training links, and collateral.',
+                            'Product pages own product-line summaries, best-fit notes, related lines, quick links, and warranty or FAQ paths.',
+                            'Start Here pages explain navigation, requests, source checks, and governance rather than storing product detail.',
+                        ],
+                    ],
+                    [
+                        'title' => 'Common Mistakes to Avoid',
+                        'summary' => 'These are the patterns that make the hub harder to trust over time.',
+                        'points' => [
+                            'Do not create top-level books for specs, warranties, FAQs, training, or collateral.',
+                            'Do not link a routing page straight to an external vendor PDF when a vendor/product page should own that link.',
+                            'Do not repeat warranty, pricing, or spec details across multiple service pages.',
+                            'Do not put usernames, passwords, recovery codes, or shared credentials in BookStack.',
+                            'Do not rename the Vendors area to Products; Vendors is the canonical source-of-truth book.',
+                            'Do not treat System Categories as content dumps; they are routing pages.',
                         ],
                     ],
                 ],
@@ -1022,6 +1064,27 @@ HTML;
                             'Confirm warranty coverage before using it as a selling point.',
                             'Confirm whether pricing is public, dealer-only, or rep-provided.',
                             'If the vendor page says access is pending or direct confirmation is required, ask for the missing detail before quoting.',
+                        ],
+                    ],
+                    [
+                        'title' => 'Status Tags',
+                        'summary' => 'Use tags to show what is reliable, gated, pending, or needs replacement.',
+                        'points' => [
+                            'Audited means the source is in the current audit scope and intentionally included.',
+                            'Login Required means the resource is a portal, dealer app, pricing page, or protected source. Credentials stay in 1Password.',
+                            'Pending means access, source replacement, or vendor confirmation is still needed.',
+                            'Rep Confirm Needed means a vendor rep/contact path must be used before quoting or promising details.',
+                            'Broken / Replace means the link failed clearly or points to a source that should be replaced.',
+                        ],
+                    ],
+                    [
+                        'title' => 'Credential Rule',
+                        'summary' => 'BookStack can point to a protected resource, but it must not contain secrets.',
+                        'points' => [
+                            'Vendor pages may list dealer-portal URLs and the matching 1Password item name.',
+                            'Actual usernames, passwords, recovery codes, and shared credentials live in 1Password only.',
+                            'Keep login-gated resources visible but labeled Login Required so reps know the path exists.',
+                            'Warranty, pricing, install, and certification details must be rep-confirmed before being quoted to a customer.',
                         ],
                     ],
                 ],
@@ -1063,12 +1126,67 @@ HTML;
                         ],
                     ],
                     [
+                        'title' => 'Update Order',
+                        'summary' => 'Use this order so rep updates land where the team can maintain them.',
+                        'points' => [
+                            'Edit the matching vendor or product page directly in BookStack.',
+                            'Bump the last-verified note after checking the official source or rep response.',
+                            'Update Residential and Commercial service pages only when positioning or routing changed.',
+                            'Post major vendor changes, discontinuations, or urgent corrections to Recent Changes.',
+                            'Update readme.md, docs/navigation.md, or the seeder only when the structure itself changed.',
+                        ],
+                    ],
+                    [
                         'title' => 'Who to Ask',
                         'summary' => 'Use the right escalation path for the type of missing information.',
                         'points' => [
                             'For vendor access, pricing, samples, or dealer portal issues, ask the assigned vendor rep or account contact.',
                             'For website structure, navigation, or content placement, contact John Borg.',
                             'For customer-facing uncertainty, mark the answer as unconfirmed until the vendor source or rep confirms it.',
+                        ],
+                    ],
+                ],
+                $quickLinks
+            );
+        }
+
+        if ($pageName === 'Recent Changes') {
+            $quickLinks = $this->buildStartHereBookLinks($books);
+
+            return $this->buildScaffoldPageHtml(
+                'Start Here',
+                $pageName,
+                $summary,
+                [
+                    [
+                        'title' => 'What Belongs Here',
+                        'summary' => 'Use this page for changes the whole team should notice, not routine source cleanup.',
+                        'points' => [
+                            'Product discontinuations or substitutions.',
+                            'Major warranty, pricing, install, or certification changes.',
+                            'New or changed vendor rep contact paths.',
+                            'Urgent broken-link replacements when a customer-facing answer depends on the source.',
+                        ],
+                    ],
+                    [
+                        'title' => 'Entry Format',
+                        'summary' => 'Keep updates short, dated, and tied back to the canonical page.',
+                        'points' => [
+                            'Date of change.',
+                            'Vendor or product affected.',
+                            'What changed and why reps should care.',
+                            'Link to the vendor/product page that owns the full detail.',
+                            'Owner or verifier for follow-up.',
+                        ],
+                    ],
+                    [
+                        'title' => 'Do Not Use This For',
+                        'summary' => 'Routine edits should stay on the canonical page without creating announcement noise.',
+                        'points' => [
+                            'Small typo fixes.',
+                            'Adding a normal product link that does not change sales positioning.',
+                            'Private credentials or passwords.',
+                            'Unverified rumors from a vendor or customer.',
                         ],
                     ],
                 ],
@@ -1130,16 +1248,27 @@ HTML;
                         'Use System Categories when the customer describes a need or outcome instead of naming a product.',
                         'Use the vendor page first during normal sales lookup.',
                         'Use this page when a vendor link breaks, a customer asks for proof, or two pages disagree.',
-                        'After a source changes, update the vendor page and any affected service pages so the hub stays consistent.',
+                        'For day-to-day content, update the matching vendor/product page in BookStack after verifying the official source or rep response.',
                     ],
                 ],
                 [
                     'title' => 'Navigation Model',
                     'summary' => 'This is the path the hub is built around.',
                     'points' => [
-                        'Customer Need -> System Category -> Residential/Commercial Category -> Product/Vendor Page -> Official Source',
+                        'Customer Need -> System Category -> Residential/Commercial Category -> Source Reference',
                         'System and service pages route the team to the right place.',
-                        'Vendor and product pages own the facts that change over time.',
+                        'Vendor and product pages in BookStack own the facts that change over time.',
+                    ],
+                ],
+                [
+                    'title' => 'Status Tags',
+                    'summary' => 'Use these labels to make link health and source confidence visible.',
+                    'points' => [
+                        'Audited: in current audit scope; treat as intentionally included.',
+                        'Login Required: portal, dealer app, pricing, or protected resource. Credentials go in 1Password, not BookStack.',
+                        'Pending: access, source replacement, or vendor confirmation still needed.',
+                        'Rep Confirm Needed: use the vendor rep/contact path before quoting or promising details.',
+                        'Broken / Replace: link failed clearly or points to a page that should be replaced.',
                     ],
                 ],
                 [
@@ -1156,11 +1285,22 @@ HTML;
                     'title' => 'How to Keep This Current',
                     'summary' => 'Use this order when a vendor source changes or a bad link is found.',
                     'points' => [
-                        'Confirm the replacement link is official and relevant to what Shades of Texas sells.',
-                        'Update the matching vendor page in Vendors.',
-                        'Update product pages under that vendor if the change affects a specific product line.',
-                        'Update Residential or Commercial pages if the change affects how we position a service category.',
+                        'Update the matching vendor/product page in BookStack first; that is the day-to-day content source of truth.',
+                        'Bump the last-verified note after checking the official source or rep response.',
+                        'Use docs/source.md and docs/products.md as seed/import references, audit inputs, or recovery data, not routine editing targets.',
+                        'Update Residential or Commercial pages only if the change affects how we position or route a service category.',
                         'Leave a clear note when the vendor does not publish a public source and direct rep confirmation is required.',
+                    ],
+                ],
+                [
+                    'title' => 'Current Gaps and Roadmap',
+                    'summary' => 'Gaps stay visible so the right owner can close them.',
+                    'points' => [
+                        'Rep contacts are the highest-value missing field; add regional rep name, phone, and email as they are collected.',
+                        'Distributor collateral for Accent, Sunbelt, and related manufacturers remains Rep Confirm Needed until vendor-specific resources are confirmed.',
+                        'Dallas Flat Glass dealer portal access is pending and should be followed up if no response is received.',
+                        'Broken / Replace items in docs/link-audit.md should be replaced before customer-facing collateral depends on them.',
+                        'Future additions may include an SOP / Playbook pillar, a change announcement feed, and last-verified stamps per vendor page.',
                     ],
                 ],
             ],
@@ -1476,6 +1616,7 @@ HTML
                     ['name' => 'How to Use This Hub', 'summary' => 'Quick guide to navigating the knowledge base.'],
                     ['name' => 'Where to Find Product Info and Pricing', 'summary' => 'Explains where product details and pricing references live.'],
                     ['name' => 'How to Request Missing Documents', 'summary' => 'How to request a file or ask for a new reference page.'],
+                    ['name' => 'Recent Changes', 'summary' => 'Team-facing announcements for discontinuations, major source updates, and urgent corrections.'],
                 ],
             ],
             'Residential' => [
@@ -1601,22 +1742,22 @@ HTML;
         return $this->buildScaffoldPageHtml(
             'Start Here',
             'System Categories',
-            'Start with the customer need, then route into the right service category, product page, vendor page, and official source.',
+            'Start with the customer need, then choose the Residential or Commercial sales category that matches the project.',
             [
                 [
                     'title' => 'How This Layer Works',
                     'summary' => 'System categories are routing pages, not document libraries.',
                     'points' => [
                         'Use them when a customer describes the outcome they want rather than a specific product.',
-                        'Open the matching Residential or Commercial category for sales context.',
-                        'Use vendor and product pages for specs, warranties, install guides, training, collateral, contacts, and portal references.',
+                        'Open the matching Residential or Commercial category for sales context before jumping to source documents.',
+                        'Use vendor and product pages only when the service page sends you there for specs, warranties, install guides, training, collateral, contacts, or portal references.',
                     ],
                 ],
                 [
                     'title' => 'Canonical Path',
                     'summary' => 'This keeps the hub easy to maintain as vendors, products, and sources change.',
                     'points' => [
-                        'Customer Need -> System Category -> Residential/Commercial Category -> Product/Vendor Page -> Official Source',
+                        'Customer Need -> System Category -> Residential/Commercial Category -> Source Reference',
                         'Do not duplicate vendor facts on routing pages.',
                         'When a vendor source changes, update the vendor/product page first.',
                     ],
@@ -1627,7 +1768,7 @@ HTML;
     <div class="sotx-section-head">
         <div>
             <h2>Choose the Customer Need</h2>
-            <p class="sotx-note" style="margin:.35rem 0 0;">Each card links to the categories and vendors that support that system.</p>
+            <p class="sotx-note" style="margin:.35rem 0 0;">Each card opens a routing page with Residential and Commercial next steps.</p>
         </div>
     </div>
     <div class="sotx-service-grid" style="margin-top:1rem;">{$cards}</div>
@@ -1644,7 +1785,7 @@ HTML
         }
 
         $serviceLinks = $this->buildSystemServiceLinksHtml($systemCategory['services'], $pagesByBook);
-        $vendorLinks = $this->buildSystemVendorLinksHtml($systemCategory['vendors'], $vendorPages);
+        $vendorLinks = $this->buildSystemVendorChipsHtml($systemCategory['vendors'], $vendorPages);
 
         $leadContent = <<<HTML
 <section class="sotx-section">
@@ -1661,7 +1802,7 @@ HTML
     <div class="sotx-section-head">
         <div>
             <h2>Sales Categories</h2>
-            <p class="sotx-note" style="margin:.35rem 0 0;">Open the matching Residential or Commercial category for sales context.</p>
+            <p class="sotx-note" style="margin:.35rem 0 0;">Choose one of these first. They carry the sales positioning, job context, and next-step guidance.</p>
         </div>
     </div>
     <div class="sotx-actions" style="margin-top:.55rem;">{$serviceLinks}</div>
@@ -1670,11 +1811,11 @@ HTML
 <section class="sotx-section">
     <div class="sotx-section-head">
         <div>
-            <h2>Vendor/Product Source Pages</h2>
-            <p class="sotx-note" style="margin:.35rem 0 0;">Use these pages for specs, warranties, install guides, collateral, contacts, and official links.</p>
+            <h2>Source References</h2>
+            <p class="sotx-note" style="margin:.35rem 0 0;">These are supporting sources, not the primary route. Use them after a service page tells you which line matters.</p>
         </div>
     </div>
-    <div class="sotx-actions" style="margin-top:.55rem;">{$vendorLinks}</div>
+    <div class="sotx-chip-list" style="margin-top:.55rem;">{$vendorLinks}</div>
 </section>
 HTML;
 
@@ -1687,8 +1828,8 @@ HTML;
                     'title' => 'How to Use This Page',
                     'summary' => 'Start here when the customer need is clear but the product path is not.',
                     'points' => [
-                        'Choose a sales category first if you need positioning or project-fit context.',
-                        'Choose a vendor/product source page when you need specs, warranty, installation, training, or collateral.',
+                        'Choose a sales category first for positioning, job fit, and the correct Residential or Commercial workflow.',
+                        'Use source references only when you need specs, warranty, installation, training, collateral, pricing, or rep confirmation.',
                         'Keep new details on the vendor or product page, then link here only when the route changes.',
                     ],
                 ],
@@ -1723,6 +1864,22 @@ HTML;
             }
 
             $html .= '<a href="' . e($page->getUrl()) . '" class="sotx-pill">' . e($vendorName) . '</a>';
+        }
+
+        return $html;
+    }
+
+    protected function buildSystemVendorChipsHtml(array $vendorNames, array $vendorPages): string
+    {
+        $html = '';
+        foreach ($vendorNames as $vendorName) {
+            $page = $vendorPages[$vendorName] ?? null;
+            if (!$page instanceof Page) {
+                $html .= '<span class="sotx-chip">' . e($vendorName) . '</span>';
+                continue;
+            }
+
+            $html .= '<a href="' . e($page->getUrl()) . '" class="sotx-chip sotx-chip-link">' . e($vendorName) . '</a>';
         }
 
         return $html;
@@ -1805,12 +1962,26 @@ HTML;
 
     protected function buildServiceCategoryHtml(string $serviceName, string $chapterName, string $categoryName, string $summary, array $productNames, array $productPages, ?Book $vendorsBook = null): string
     {
-        $resourceLinks = '';
-        if ($vendorsBook) {
-            $resourceLinks .= '<a href="' . e($vendorsBook->getUrl()) . '" class="sotx-pill">Vendors</a>';
-        }
-
         $productsHtml = $this->buildProductChipsHtml($productNames, $productPages);
+        $sourceLibraryLink = $vendorsBook
+            ? '<a href="' . e($vendorsBook->getUrl()) . '" class="sotx-pill">Open Source Library</a>'
+            : '';
+
+        $sourceSection = '';
+        if ($productsHtml !== '') {
+            $sourceSection = <<<HTML
+<section class="sotx-section">
+    <div class="sotx-section-head">
+        <div>
+            <h2>Source References</h2>
+            <p class="sotx-note" style="margin:.35rem 0 0;">Use these after the project fit is clear. They hold specs, warranty paths, install guides, collateral, pricing references, and rep contacts.</p>
+        </div>
+        {$sourceLibraryLink}
+    </div>
+    {$productsHtml}
+</section>
+HTML;
+        }
 
         return <<<HTML
 <div class="sotx-home">
@@ -1818,11 +1989,33 @@ HTML;
         <p class="sotx-kicker">{$serviceName} / {$chapterName}</p>
         <h1>{$categoryName}</h1>
         <p class="sotx-lede">{$summary}</p>
-        {$productsHtml}
-        <div class="sotx-actions" style="margin-top:1rem;">
-            {$resourceLinks}
+    </section>
+
+    <section class="sotx-section">
+        <div class="sotx-service-grid">
+            <section class="sotx-card sotx-mini-card sotx-template-block">
+                <h4>Use This Page For</h4>
+                <p class="sotx-note" style="margin-top:.65rem;">Project-fit and sales-context decisions before choosing a vendor source.</p>
+                <ul class="sotx-template-list">
+                    <li>Confirm whether this category matches the customer's stated need.</li>
+                    <li>Use the linked source references only after this sales path fits the job.</li>
+                    <li>Keep warranty, pricing, spec, install, and portal details on source pages.</li>
+                </ul>
+            </section>
+            <section class="sotx-card sotx-mini-card sotx-template-block">
+                <h4>Rep Flow</h4>
+                <p class="sotx-note" style="margin-top:.65rem;">Stay in the sales lane until a specific source is needed.</p>
+                <ul class="sotx-template-list">
+                    <li>Need/problem first.</li>
+                    <li>{$serviceName} context second.</li>
+                    <li>{$categoryName} positioning third.</li>
+                    <li>Source reference last.</li>
+                </ul>
+            </section>
         </div>
     </section>
+
+    {$sourceSection}
 </div>
 HTML;
     }
@@ -2970,17 +3163,20 @@ HTML;
         $quickLinks = '';
         foreach ([
             ['url' => $startHereUrl, 'label' => 'Start Here'],
-            ['url' => $books['Vendors']->getUrl(), 'label' => 'Vendors'],
+            ['url' => $books['Residential']->getUrl(), 'label' => 'Residential'],
+            ['url' => $books['Commercial']->getUrl(), 'label' => 'Commercial'],
         ] as $link) {
             $quickLinks .= '<a href="' . e($link['url']) . '" class="sotx-pill">' . e($link['label']) . '</a>';
         }
 
         $vendorsBook = $books['Vendors'];
+        $sourceTruthUrl = $this->findPageUrl($pagesByBook, 'Start Here', null, 'Source of Truth') ?? $startHereUrl;
 
         $supportCards = '';
         foreach ([
             ['url' => $startHereUrl, 'title' => 'Start Here', 'description' => 'Task buttons for sales-call lookup, updates, portals, and source checks.'],
-            ['url' => $vendorsBook->getUrl(), 'title' => 'Vendors', 'description' => 'Brand-level vendor pages and what we carry.'],
+            ['url' => $sourceTruthUrl, 'title' => 'Source of Truth', 'description' => 'Use when a link, claim, warranty, or vendor source needs verification.'],
+            ['url' => $vendorsBook->getUrl(), 'title' => 'Source Library', 'description' => 'Brand-level pages for official specs, warranties, portals, contacts, and collateral.'],
         ] as $supportCard) {
             $supportCards .= <<<HTML
 <a href="{$supportCard['url']}" class="sotx-card sotx-mini-card">
@@ -2998,8 +3194,8 @@ HTML;
                 <p class="sotx-kicker">High Level</p>
                 <h1>Find the right answer fast.</h1>
                 <p class="sotx-lede" style="max-width:38rem;">
-                    Start with the customer need, route into the right service category, then use vendor and product pages for the official source.
-                    Built so specs, warranties, training, collateral, and contacts stay easy to find without being repeated.
+                    Start with the customer need, choose Residential or Commercial context, then open source references only when the answer needs proof.
+                    Built so the team can stay in the sales workflow instead of falling straight into vendor pages.
                 </p>
             </div>
             <div class="sotx-actions">
@@ -3020,8 +3216,8 @@ HTML;
                 <span>Customer needs</span>
             </div>
             <div class="sotx-metric">
-                <strong>Vendors</strong>
-                <span>Source of truth</span>
+                <strong>Sources</strong>
+                <span>When needed</span>
             </div>
         </div>
     </section>
@@ -3061,7 +3257,7 @@ HTML;
             <div>
                 <p class="sotx-kicker">Workflow</p>
                 <h2>Need first. Vendor facts last.</h2>
-                <p class="sotx-note" style="margin:.35rem 0 0;">Use categories to route the conversation, then open vendor/product pages for specs, warranties, install guides, collateral, contacts, and official links.</p>
+                <p class="sotx-note" style="margin:.35rem 0 0;">Use categories to route the conversation. Open source references only for specs, warranties, install guides, collateral, contacts, and official links.</p>
             </div>
             <a href="{$startHereUrl}" class="sotx-pill">Open Task Buttons</a>
         </div>
@@ -3080,6 +3276,7 @@ HTML;
                     ['name' => 'How to Use This Hub', 'summary' => 'Quick guide to navigating the knowledge base.'],
                     ['name' => 'Where to Find Product Info and Pricing', 'summary' => 'Explains where product details and pricing references live.'],
                     ['name' => 'How to Request Missing Documents', 'summary' => 'How to request a file or ask for a new reference page.'],
+                    ['name' => 'Recent Changes', 'summary' => 'Team-facing announcements for discontinuations, major source updates, and urgent corrections.'],
                 ],
             ],
             'Residential' => [

@@ -5,7 +5,7 @@ This document defines how the Shades of Texas internal knowledge base is organiz
 The navigation model is:
 
 ```text
-Customer Need -> System Category -> Residential/Commercial Category -> Product/Vendor Page -> Official Source
+Customer Need -> System Category -> Residential/Commercial Category -> Source Reference
 ```
 
 The hub should feel like a practical sales map, not a file cabinet.
@@ -43,17 +43,17 @@ Every page has one job.
 
 | Page type | Job | Should contain | Should not contain |
 |---|---|---|---|
-| System Category page | Route by customer outcome | Relevant services, vendors, and products | Full specs, warranty text, portal credentials |
-| Residential/Commercial page | Route by sales workflow | Sales context and vendor/product chips | Duplicated vendor documentation |
-| Vendor page | Vendor source of truth | Contacts, official links, warranties, FAQs, source inventory, dealer portal references, collateral | Repeated service-category explanations |
-| Product page | Product-line source of truth | Summary, fit, related lines, quick links, warranty/FAQ paths | Unrelated vendor catalog content |
+| System Category page | Route by customer outcome | Relevant service lanes and supporting source references | Full specs, warranty text, portal credentials |
+| Residential/Commercial page | Route by sales workflow | Sales context and secondary source-reference chips | Duplicated vendor documentation |
+| Vendor page | Vendor content source of truth in BookStack | Contacts, official links, warranties, FAQs, source inventory, dealer portal references, collateral | Repeated service-category explanations |
+| Product page | Product-line content source of truth in BookStack | Summary, fit, related lines, quick links, warranty/FAQ paths | Unrelated vendor catalog content |
 | Start Here page | Usage and governance | How to navigate, request changes, and verify sources | Product detail |
 
 ---
 
 ## System categories
 
-The five System Categories live under `Start Here`. They are the first customer-need layer and should route users into the existing Residential, Commercial, and Vendors pages.
+The five System Categories live under `Start Here`. They are the first customer-need layer and should route users into the existing Residential and Commercial sales categories first, with vendor/product pages shown as secondary source references.
 
 | System category | Description | Examples |
 |---|---|---|
@@ -63,7 +63,7 @@ The five System Categories live under `Start Here`. They are the first customer-
 | Security and Safety | Protect people, property, and peace of mind. | Accent/3M, Sunbelt/Avery Dennison, Rollock Security Shutters |
 | Home Automation & Control | Automate comfort, light, shade, and privacy. | Somfy, Vantis |
 
-System pages are navigation pages. They should summarize the need, list common examples, link to matching sales categories, and link to relevant vendor/product pages.
+System pages are navigation pages. They should summarize the need, list common examples, link to matching sales categories, and show relevant vendor/product pages as source references rather than the primary next step.
 
 ---
 
@@ -75,8 +75,7 @@ When the customer describes a problem:
 Home
   -> System Category
     -> Residential or Commercial category
-      -> Vendor or product page
-        -> Official source link, warranty, install guide, collateral, or dealer portal
+      -> Source reference if specs, warranty, install guide, collateral, or dealer portal info is needed
 ```
 
 When the rep already knows the vendor:
@@ -93,10 +92,9 @@ When something looks stale:
 
 ```text
 Page with bad/missing info
-  -> Source of Truth
-    -> Official vendor source
-      -> Update vendor/product page
-        -> Update affected routing pages only if positioning changed
+  -> Vendor/product page in BookStack
+    -> Verify against official source or rep
+      -> Update affected routing pages only if positioning changed
 ```
 
 ---
@@ -277,9 +275,9 @@ Build and maintain content in this order:
 
 1. Confirm the vendor/product source page exists in `Vendors`.
 2. Add or update official links, warranty paths, FAQ links, install/training links, collateral, and portal references there.
-3. Link Residential or Commercial category pages to the vendor/product page.
-4. Link System Category pages to the relevant category and vendor/product pages.
-5. Update `Source of Truth` if the official source map changed.
+3. Link Residential or Commercial category pages to the vendor/product page only when the sales route changes.
+4. Link System Category pages to the relevant Residential or Commercial category pages first.
+5. Keep audit findings open until the canonical BookStack page has been corrected.
 
 ---
 

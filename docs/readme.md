@@ -11,6 +11,8 @@ Customer Need -> System Category -> Residential/Commercial Category -> Product/V
 
 The goal is not to duplicate every vendor website. The goal is to create a clean internal map that points the team to the right answer quickly and keeps official vendor information in one canonical place.
 
+Structure and routing are owned by this repository. Day-to-day vendor and product content is owned by BookStack so reps can update contacts, links, warranty notes, and source corrections where they already work.
+
 Design principles
 -----------------
 
@@ -72,8 +74,8 @@ Sales workflow pages for business, storefront, facility, and commercial property
 
 The canonical vendor and product source of truth.
 
-- Vendor overview pages own contacts, official links, dealer portal references, warranty paths, FAQs, source inventory, training links, and collateral.
-- Vendor product pages own product summaries, best-fit notes, related lines, warranty/FAQ links, quick links, and vendor hub links.
+- Vendor overview pages in BookStack own contacts, official links, dealer portal references, warranty paths, FAQs, source inventory, training links, and collateral.
+- Vendor product pages in BookStack own product summaries, best-fit notes, related lines, warranty/FAQ links, quick links, and vendor hub links.
 - Residential, Commercial, and System Category pages link into Vendors instead of repeating vendor detail.
 
 System categories
@@ -109,6 +111,6 @@ Source files
 ------------
 
 - `docs/navigation.md` is the structural source of truth.
-- `docs/source.md` is the vendor source map.
-- `docs/products.md` is the canonical vendor product inventory feeding the Vendors book.
+- `docs/source.md` is seed/import data and an audit reference for vendor sources.
+- `docs/products.md` is seed/import data for vendor product pages.
 - `docs/link-audit.md` tracks external link status, login gates, pending sources, and replacement needs.

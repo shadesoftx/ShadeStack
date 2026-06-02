@@ -1,14 +1,22 @@
 # Source of Truth
 
-This page is the master source map for the Shades of Texas knowledge base.
+This page is the seed/import source map for the Shades of Texas knowledge base.
 
-Use it first when you need to update brand pages, service pages, or the shared resource books. The order should always be:
+Use it for bulk seeding, audits, and recovery checks. Routine vendor and product content edits should happen directly on the relevant BookStack vendor/product page, since that is where sales reps can contribute contacts, corrections, and fresh source notes.
 
-1. Update this source map.
-2. Update the BookStack `Source of Truth` page.
-3. Update the brand pages in `Vendors`.
-4. Update the service pages in `Residential` and `Commercial`.
-5. Finish with [`docs/readme.md`](readme.md) and [`docs/navigation.md`](navigation.md).
+Routine content changes:
+
+1. Edit the vendor or product page in BookStack.
+2. Bump the page's last-verified note after checking the official source or rep response.
+3. Update routing pages only if the sales positioning changed.
+4. Log major changes or discontinuations in Recent Changes.
+
+Structural changes:
+
+1. Update [`docs/navigation.md`](navigation.md).
+2. Update the Laravel seeder.
+3. Reseed; the seeder manages structure and routing pages, while vendor/product content is seed-if-absent.
+4. Update [`docs/readme.md`](readme.md) if the model changed.
 
 Last updated: 2026-06-01
 
@@ -26,7 +34,7 @@ Each brand is organized into seven resource categories:
 - **Pricing** — where to find pricing guides, quote tools, or pricing portals
 - **Training & Certification** — certification programs and what they mean for selling
 
-> **Rep Contact Info** — Add your assigned regional sales rep name, phone, and email under each brand as you collect them. This is the most important field for when you hit a wall.
+> **Rep Contact Info** — Add your assigned regional sales rep name, phone, and email on the BookStack vendor page as you collect them. This is the most important field for when you hit a wall.
 
 ---
 
@@ -1341,6 +1349,7 @@ Pricing is handled through authorized 3M window film dealers and local reps.
 
 - Keep the source list current before changing any downstream page content.
 - If a vendor updates a warranty or support page, update this file first.
-- The BookStack `Source of Truth` page should mirror this document.
+- The BookStack vendor/product pages are the day-to-day source of truth for contacts, links, warranties, collateral, and rep confirmation notes.
+- This markdown file remains useful for seeding, audits, and bulk recovery, but should not overwrite live BookStack edits.
 - Dallas Flat Glass portal links are pending — follow up if no response within one week.
 - Rep contact fields are intentionally blank — fill these in as you collect them. They are the single most valuable thing to have when a deal needs support.
