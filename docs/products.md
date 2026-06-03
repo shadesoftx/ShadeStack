@@ -1,8 +1,210 @@
-# Vendor Products
+# Product Taxonomy
 
-This is the canonical product inventory used by the `Vendors` book.
+This is the canonical product taxonomy and seed inventory used by the `Products` book.
 
-Keep it focused on product families, collection pages, or the closest official hub for each line. When a vendor exposes a more specific product page, link directly to it.
+The approved navigation model is:
+
+```text
+Start Here -> SOT Product Category -> Vendor -> Product -> Outcome Resources
+```
+
+Keep product entries focused on product families, collection pages, or the closest official hub for each line. When a vendor exposes a more specific product page, link directly to it.
+
+## Status Labels
+
+Use these labels consistently:
+
+| Status | Meaning |
+|---|---|
+| Complete | All expected resources are present. |
+| Partial | Some resources exist, but at least one major outcome resource is missing. |
+| Needed | Documentation is required but has not been sourced. |
+| Pending Review | Documentation exists but needs validation. |
+| Not Applicable | This outcome category does not apply. |
+
+## Product Categories
+
+Initial categories:
+
+- Shades
+- Shutters
+- Screens
+- Pergolas
+- Patio Covers
+- Tint & Film
+- Windows
+- Doors
+- Glass & Windows
+- Outdoor Living
+- Smart & Automation
+
+## BookStack Placement
+
+```text
+Shelf: Products
+  Book: SOT Product Category
+    Chapter: Vendor
+      Page: Vendor - Overview
+      Page: Vendor - Product
+```
+
+Outcome resources are headings inside product pages, not child pages. The locked outcome order is:
+
+1. Install Guides
+2. Product Specs
+3. Sales Collateral
+4. Warranty
+
+## Category Book Template
+
+```text
+# SOT Product Category
+
+## Purpose
+Short description of what this category covers.
+
+## Vendors
+- Vendor A
+- Vendor B
+
+## Products
+Grouped by vendor.
+
+## Common Sales Notes
+Category-level notes useful to sales.
+
+## Common Install Notes
+Category-level install considerations and vendor install guide categories.
+
+## Open Documentation Gaps
+Missing specs, collateral, install guides, or warranty docs.
+```
+
+## Vendor Overview Template
+
+```text
+# Vendor - Overview
+
+Product link strip
+
+## Install Guides
+Brand-wide or category-level install resources.
+
+## Product Specs
+Official product hubs, spec libraries, dealer/pro portals, CAD/BIM/spec references.
+
+## Sales Collateral
+Brochures, catalogs, sell sheets, customer-facing pages, and approved collateral sources.
+
+## Warranty
+Brand-wide warranty page/PDF, claim/support path, and product-specific exception reminders.
+```
+
+Generated vendor overview pages should not include separate containers for Vendor Reference, Products in this line, Categories Supported, FAQs, Quick Links, or Source Inventory. Put those links inside one of the four outcome sections or in the compact product link strip.
+
+## Product Page Template
+
+```text
+# Vendor - Product
+
+## Install Guides
+Links to install guides, field notes, checklists, or job prep docs.
+Show status badge and scope note.
+
+## Product Specs
+Links or notes for product specifications.
+Show status badge and scope note.
+
+## Sales Collateral
+Links to brochures, sell sheets, comparison docs, or customer-facing materials.
+Show status badge and scope note.
+
+## Warranty
+Links or notes for warranty coverage, claim process, and exclusions.
+If brand-wide, link up to Vendor - Overview -> Warranty.
+Show status badge and scope note.
+```
+
+Generated product pages should not include filler containers for Overview, Category, Vendor, Use Cases, Internal Notes, or Source Status. If that information becomes useful, put it in one of the four outcome sections or on the vendor overview.
+
+## Naming Conventions
+
+Pages use plain hyphen names:
+
+- `Vendor - Overview`
+- `Vendor - Product`
+
+Source/resource names include vendor, product, resource type, and date when known:
+
+```text
+3M - Prestige Series - Product Specs - 2026-06-03
+Eclipse - Exterior Screens - Install Guide - 2026-06-03
+Pella - Impervia Windows - Warranty - 2026-06-03
+```
+
+## Category Vendor Map
+
+| Product category | Vendors |
+|---|---|
+| Shades | Hunter Douglas, Alta, Norman, Draper, Eclipse, Vantis |
+| Shutters | Hunter Douglas, Alta, Norman, Rollock Security Shutters |
+| Screens | Austin Screens, Draper, ShadePro Shade Systems, Eclipse |
+| Pergolas | ShadePro Shade Systems, Four Seasons Patio Systems, Eclipse |
+| Patio Covers | Old Castle / US Aluminum, ShadePro Shade Systems, Four Seasons Patio Systems, Eclipse |
+| Tint & Film | 3M, Accent, Sunbelt, Avery Dennison, Decorative Films, SolX, Frost, SmartTint, Ghost Glass, Vantis |
+| Windows | Andersen, Pella, JELD-WEN, Dallas Flat Glass, Old Castle / US Aluminum |
+| Doors | Andersen, Pella, JELD-WEN, CRL |
+| Glass & Windows | Old Castle / US Aluminum, Andersen, Pella, JELD-WEN, CRL, Dallas Flat Glass, Ghost Glass |
+| Outdoor Living | Austin Screens, Draper, ShadePro Shade Systems, Four Seasons Patio Systems, Eclipse |
+| Smart & Automation | Somfy, Vantis, SmartTint, Ghost Glass |
+
+## Product Coverage Ledger
+
+This ledger separates known product inventory from collection work. Use it to decide what needs to be sourced before writing fuller product pages.
+
+| Vendor | Primary category | Current product inventory | Product source status | Still need to find/populate |
+|---|---|---|---|---|
+| 3M | Tint & Film | 28 known public product, family, simulator, resource, and PDF entries | Partial | Product-by-product install guides, current sales collateral, dealer resources, warranty mapping by film family |
+| Accent | Tint & Film | 1 distributor/product path entry | Needed | Official distributor URL, supported 3M product list, source URLs, portal, warranty/support path |
+| Sunbelt | Tint & Film | 1 distributor/product path entry | Needed | Official distributor URL, supported Avery Dennison product list, source URLs, portal, warranty/support path |
+| Avery Dennison | Tint & Film | 1 architectural window film family entry | Needed | Official product hub, film family URLs, specs, install guides, brochures, warranty/support path |
+| Somfy | Smart & Automation | 1 motorization/control platform entry | Needed | Official product hub, controls list, compatibility docs, install/programming guides, warranty/support path |
+| Vantis | Smart & Automation | 2 product entries: Smart Film and Shade Systems | Partial | Official product pages captured; install/programming docs, collateral, and warranty/support path still need confirmation |
+| Hunter Douglas | Shades | 27 known product, treatment, shutter, door-covering, and automation entries | Partial | Dealer resource library, product-specific install PDFs, current brochures, warranty mapping by line |
+| Alta | Shades | 13 known product, blind, shade, shutter, and automation entries | Partial | Install guides, current brochures/spec sheets, dealer portal, warranty mapping by line |
+| Norman | Shades | 16 known shade, blind, shutter, and vertical treatment entries | Partial | Install guides, current brochures/spec sheets, dealer portal, warranty mapping by line |
+| Eclipse | Screens | 13 known awning, screen, shade, roof-system, brochure, and comparison entries | Partial | Product-specific install guides, dealer/training resources, warranty mapping by product |
+| Austin Screens | Screens | 1 solar screen entry | Needed | Official product hub, product family list, specs, install guides, sales collateral, warranty/support path |
+| Draper | Shades | 1 shade/solar-control entry | Needed | Official product hub, shade/screen product lines, specs, install guides, collateral, warranty/support path |
+| Decorative Films | Tint & Film | 1 decorative/privacy film entry | Needed | Official product hub, film family URLs, specs, install guides, brochures, warranty/support path |
+| SolX | Tint & Film | 1 decorative/privacy film entry | Needed | Official product hub, specs, install guides, brochures, warranty/support path |
+| Frost | Tint & Film | 1 frosted privacy film entry | Needed | Official product hub, specs, install guides, brochures, warranty/support path |
+| Old Castle / US Aluminum | Windows | 1 storefront/glazing systems entry | Needed | Official product hub, system catalog, specs, install guides, warranty/support path |
+| ShadePro Shade Systems | Pergolas | 1 patio shade systems entry | Needed | Official product hub, product lines, specs, install guides, collateral, warranty/support path |
+| Four Seasons Patio Systems | Pergolas | 1 patio rooms/enclosures entry | Needed | Official product hub, product lines, specs, install guides, collateral, warranty/support path |
+| Rollock Security Shutters | Shutters | 1 rolling security shutters entry | Needed | Official product hub, specs, install guides, collateral, warranty/support path |
+| SmartTint | Tint & Film | 17 known smart film, smart glass, shop, controller, and application entries | Partial | Product-specific install guides, sales collateral, dealer pricing/login path, warranty mapping by product |
+| Andersen | Windows | 11 known window, door, series, comparison, and big-door entries | Partial | Install guides by series, spec sheets by series, brochures, dealer/pro portal resources, warranty mapping |
+| Pella | Windows | 25 known window, door, patio door, series, and product-family entries | Partial | Install guides by series, spec sheets by series, brochures, dealer/pro portal resources, warranty mapping |
+| CRL | Doors | 22 known hardware, glass entrance, railing, glazing, and system entries | Partial | Exact product-level spec sheets, installation instructions, login-gated catalog resources, warranty mapping |
+| Dallas Flat Glass | Windows | 13 known public company/product/service entries | Partial | Product catalog, specs, warranty terms, install/handling notes, rep/contact path |
+| Ghost Glass | Tint & Film | 11 known smart/privacy film, install, FAQ, gallery, and application entries | Partial | Current product specs, sales collateral, dealer/installer notes, warranty mapping by product |
+| JELD-WEN | Windows | 11 known window, door, patio door, brochure, and product hub entries | Partial | Install guides by series, specs by series, pro/dealer resources, warranty mapping |
+
+## Product Resource Backlog
+
+These are the product-page fields that still need real content before pages can be considered complete.
+
+| Backlog area | Needed content |
+|---|---|
+| Install Guides | Official install PDFs, field notes, pre-install checklists, electrical/programming guides, handling notes, and category-level install routing |
+| Product Specs | Dimensions, materials, options, colors/fabrics/finishes, compatibility, performance data, CAD/BIM/spec PDFs, discontinued/current status |
+| Sales Collateral | Customer brochures, sell sheets, comparison charts, approved talking points, photo/application examples |
+| Warranty | Product-specific or brand-wide warranty terms, claim process, exclusions, labor/material coverage, registration requirements |
+
+## Vendor Product Inventory
+
+The vendor inventory below is retained as seed/import data for product pages and link audits.
 
 ## 3M
 
@@ -39,27 +241,28 @@ Keep it focused on product families, collection pages, or the closest official h
 ## Accent
 
 ### Accent
-- Accent / 3M Distribution - Distributor path for 3M climate control, privacy control, and security film resources. Public product URLs pending rep confirmation.
+- Accent / 3M Distribution - Distributor path for 3M climate control, privacy control, and security film resources. Needed: official distributor URL, supported product list, portal path, and warranty/support source.
 
 ## Sunbelt
 
 ### Sunbelt
-- Sunbelt / Avery Dennison Distribution - Distributor path for Avery Dennison climate control, privacy control, and security film resources. Public product URLs pending rep confirmation.
+- Sunbelt / Avery Dennison Distribution - Distributor path for Avery Dennison climate control, privacy control, and security film resources. Needed: official distributor URL, supported product list, portal path, and warranty/support source.
 
 ## Avery Dennison
 
 ### Avery Dennison
-- Avery Dennison Architectural Window Films - Climate control, privacy control, and safety film product family. Official source pending rep confirmation.
+- Avery Dennison Architectural Window Films - Climate control, privacy control, and safety film product family. Needed: official product hub, film family URLs, specs, install guides, collateral, and warranty/support source.
 
 ## Somfy
 
 ### Somfy
-- Somfy Motorization - Motorization and control platform for shades and exterior systems. Official product source pending rep confirmation.
+- Somfy Motorization - Motorization and control platform for shades and exterior systems. Needed: official product hub, controls list, compatibility docs, install/programming guides, and warranty/support source.
 
 ## Vantis
 
 ### Vantis
-- Vantis Control Systems - Home automation and shade-control reference. Official product source pending rep confirmation.
+- [Smart Film](https://vantisshades.com/) - Vantis smart film product line.
+- [Shade Systems](https://vantisshades.com/shade-systems) - Vantis shade systems product line.
 
 ## Hunter Douglas
 
@@ -149,47 +352,47 @@ Keep it focused on product families, collection pages, or the closest official h
 ## Austin Screens
 
 ### Austin Screens
-- Austin Screens Solar Screens - Solar screen product reference for climate and privacy control. Official product source pending rep confirmation.
+- Austin Screens Solar Screens - Solar screen product reference for climate and privacy control. Needed: official product hub, product family list, specs, install guides, collateral, and warranty/support source.
 
 ## Draper
 
 ### Draper
-- Draper Shades and Solar Control - Shade, screen, and solar-control product reference. Official product source pending rep confirmation.
+- Draper Shades and Solar Control - Shade, screen, and solar-control product reference. Needed: official product hub, product family list, specs, install guides, collateral, and warranty/support source.
 
 ## Decorative Films
 
 ### Decorative Films
-- Decorative Films Privacy Films - Decorative and privacy film product family. Official product source pending rep confirmation.
+- Decorative Films Privacy Films - Decorative and privacy film product family. Needed: official product hub, film family URLs, specs, install guides, collateral, and warranty/support source.
 
 ## SolX
 
 ### SolX
-- SolX Decorative Film - Decorative and privacy film reference. Official product source pending rep confirmation.
+- SolX Decorative Film - Decorative and privacy film reference. Needed: official product hub, specs, install guides, collateral, and warranty/support source.
 
 ## Frost
 
 ### Frost
-- Frost Privacy Film - Frosted privacy film reference. Official product source pending rep confirmation.
+- Frost Privacy Film - Frosted privacy film reference. Needed: official product hub, specs, install guides, collateral, and warranty/support source.
 
 ## Old Castle / US Aluminum
 
 ### Old Castle / US Aluminum
-- Old Castle / US Aluminum Storefront Systems - Commercial storefront and glazing system reference. Official product source pending rep confirmation.
+- Old Castle / US Aluminum Storefront Systems - Commercial storefront and glazing system reference. Needed: official product hub, system catalog, specs, install guides, and warranty/support source.
 
 ## ShadePro Shade Systems
 
 ### ShadePro Shade Systems
-- ShadePro Patio Shade Systems - Patio shade and extension system reference. Official product source pending rep confirmation.
+- ShadePro Patio Shade Systems - Patio shade and extension system reference. Needed: official product hub, product lines, specs, install guides, collateral, and warranty/support source.
 
 ## Four Seasons Patio Systems
 
 ### Four Seasons Patio Systems
-- Four Seasons Patio Rooms and Enclosures - Patio room, enclosure, and extension system reference. Official product source pending rep confirmation.
+- Four Seasons Patio Rooms and Enclosures - Patio room, enclosure, and extension system reference. Needed: official product hub, product lines, specs, install guides, collateral, and warranty/support source.
 
 ## Rollock Security Shutters
 
 ### Rollock Security Shutters
-- Rollock Rolling Security Shutters - Security shutter product reference for safety and security projects. Official product source pending rep confirmation.
+- Rollock Rolling Security Shutters - Security shutter product reference for safety and security projects. Needed: official product hub, specs, install guides, collateral, and warranty/support source.
 
 ## SmartTint
 
@@ -297,7 +500,7 @@ Keep it focused on product families, collection pages, or the closest official h
 - [Heavy Glass](https://dallasflatglass.com/) - Large-format glass applications.
 - [Monolithic Glass](https://dallasflatglass.com/) - Single-lite glass products.
 - [All Glass Entrance Systems](https://dallasflatglass.com/) - Entrance and storefront glass systems.
-- Public product catalog access is still pending, so this section should be treated as the current best available public inventory.
+- Needed: product catalog access, specs, warranty terms, install/handling notes, and rep/contact path.
 
 ## Ghost Glass
 

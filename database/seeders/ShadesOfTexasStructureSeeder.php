@@ -45,18 +45,37 @@ class ShadesOfTexasStructureSeeder extends Seeder
         $this->grantTeamReadAccess();
         $this->resetExistingStructure();
 
-        $shelf = $this->createShelf($byData);
+        $createdShelves = [];
+        foreach ($this->shelfConfigs() as $shelfName => $config) {
+            $createdShelves[$shelfName] = $this->createShelf($shelfName, $config['description'], $byData);
+        }
+
         $createdBooks = [];
         $createdChapters = [];
         $createdPages = [];
         $createdProductPages = [];
         $createdVendorProductPages = [];
-        $servicePageCounters = [];
         $startHerePriority = 0;
 
         foreach ($this->topLevelBooks() as $bookName => $config) {
             $createdBooks[$bookName] = $this->createBook($bookName, $config['description'], $byData);
-            $shelf->appendBook($createdBooks[$bookName]);
+            $createdShelves[$config['shelf']]->appendBook($createdBooks[$bookName]);
+        }
+
+        foreach ($createdShelves as $shelfName => $createdShelf) {
+            $allowedBookNames = array_keys(array_filter(
+                $this->topLevelBooks(),
+                fn (array $config): bool => ($config['shelf'] ?? null) === $shelfName
+            ));
+            $staleShelfBookIds = $createdShelf->books()
+                ->whereNotIn('name', $allowedBookNames)
+                ->pluck('books.id')
+                ->all();
+            if (!empty($staleShelfBookIds)) {
+                $createdShelf->books()->detach($staleShelfBookIds);
+            }
+
+            $this->syncShelfBookOrder($createdShelf, $allowedBookNames);
         }
 
         $startHerePageCounters = 0;
@@ -69,7 +88,7 @@ class ShadesOfTexasStructureSeeder extends Seeder
                 $pageName,
                 $pageConfig['summary'],
                 $byData,
-                $this->buildStartHerePageHtml($pageName, $pageConfig['summary'], $createdBooks),
+                $this->buildStartHerePageHtml($pageName, $pageConfig['summary'], $createdBooks, $createdShelves),
                 $startHerePageCounters
             );
         }
@@ -77,118 +96,236 @@ class ShadesOfTexasStructureSeeder extends Seeder
         $productPageCounters = 0;
         $brandProfiles = $this->brandProfiles();
         $vendorProductInventory = $this->parsedProductMarkdownBrands();
-        foreach (($this->bookConfigs()['Vendors']['chapters'] ?? []) as $brandName => $brandConfig) {
-            $brandChapter = $this->createChapter($createdBooks['Vendors'], $brandName, $brandConfig['description'], $byData);
-            $createdChapters['Vendors'][$brandName] = $brandChapter;
+        foreach ($this->productCategoryMap() as $categoryName => $vendorNames) {
+            $categoryBook = $createdBooks[$categoryName];
+            $categoryPriority = 0;
 
-            $vendorProductPages = [];
-            $inventoryProducts = $vendorProductInventory[$brandName] ?? ($brandProfiles[$brandName]['products'] ?? []);
-            $vendorProductPagePriority = 1;
+            foreach ($vendorNames as $brandName) {
+                if ($this->vendorPrimaryCategory($brandName) !== $categoryName) {
+                    continue;
+                }
 
-            foreach ($inventoryProducts as $product) {
-                $productName = $product['name'];
-                $vendorProductPagePriority++;
-                $vendorProductPages[$productName] = $this->createPage(
-                    $createdBooks['Vendors'],
-                    $brandChapter,
-                    $productName,
-                    $product['summary'] ?? '',
+                $brandConfig = $this->bookConfigs()['Products']['chapters'][$brandName] ?? [
+                    'description' => ($brandProfiles[$brandName]['summary'] ?? 'Vendor product resources for ' . $brandName . '.'),
+                ];
+                $inventoryProducts = $vendorProductInventory[$brandName] ?? ($brandProfiles[$brandName]['products'] ?? []);
+                $vendorProductPages = [];
+
+                $vendorChapter = $this->createChapter(
+                    $categoryBook,
+                    $brandName,
+                    $brandConfig['description'],
+                    $byData
+                );
+                $createdChapters[$categoryName][$brandName] = $vendorChapter;
+
+                $vendorOverviewPage = $this->createPage(
+                    $categoryBook,
+                    $vendorChapter,
+                    $brandName . ' - Overview',
+                    $brandConfig['description'],
                     $byData,
-                    $this->buildVendorProductPageHtml(
+                    $this->buildBrandPageHtml(
                         $brandName,
-                        $productName,
-                        $product['summary'] ?? '',
-                        $product['url'] ?? null,
-                        $inventoryProducts,
-                        $brandProfiles[$brandName] ?? []
+                        $brandName,
+                        $brandConfig['description'],
+                        $brandProfiles[$brandName] ?? [],
+                        []
                     ),
-                    $vendorProductPagePriority,
+                    1,
                     false
                 );
-            }
 
-            $createdVendorProductPages[$brandName] = $vendorProductPages;
-            $createdProductPages[$brandName] = $this->createPage(
-                $createdBooks['Vendors'],
-                $brandChapter,
-                $brandName,
-                $brandConfig['description'],
-                $byData,
-                $this->buildBrandPageHtml(
+                $createdProductPages[$brandName] ??= $vendorOverviewPage;
+
+                foreach ($inventoryProducts as $product) {
+                    $productName = $product['name'];
+                    $categoryPriority++;
+                    $vendorProductPages[$productName] = $this->createPage(
+                        $categoryBook,
+                        $vendorChapter,
+                        $brandName . ' - ' . $productName,
+                        $product['summary'] ?? '',
+                        $byData,
+                        $this->buildVendorProductPageHtml(
+                            $brandName,
+                            $productName,
+                            $product['summary'] ?? '',
+                            $product['url'] ?? null,
+                            $inventoryProducts,
+                            $brandProfiles[$brandName] ?? [],
+                            [],
+                            $categoryName,
+                            $vendorOverviewPage
+                        ),
+                        $categoryPriority + 1,
+                        false
+                    );
+                }
+
+                $createdVendorProductPages[$brandName] = array_merge($createdVendorProductPages[$brandName] ?? [], $vendorProductPages);
+                $finalVendorOverviewHtml = $this->buildBrandPageHtml(
                     $brandName,
                     $brandName,
                     $brandConfig['description'],
                     $brandProfiles[$brandName] ?? [],
                     $vendorProductPages
-                ),
-                1,
-                false
-            );
+                );
+                $vendorOverviewMissingProducts = collect($inventoryProducts)
+                    ->contains(fn (array $product): bool => !str_contains($vendorOverviewPage->html ?? '', $product['name']));
 
-            foreach ($vendorProductPages as $productName => $vendorProductPage) {
-                $productData = collect($vendorProductInventory[$brandName] ?? [])->firstWhere('name', $productName) ?? [];
-                $productSummary = $productData['summary'] ?? ($vendorProductPage->name ?? '');
-                $productUrl = $productData['url'] ?? null;
-                $finalHtml = $this->buildVendorProductPageHtml(
+                if (!empty($this->createdPageIds[$vendorOverviewPage->id])
+                    || !str_contains($vendorOverviewPage->html ?? '', 'Outcome Resources')
+                    || !str_contains($vendorOverviewPage->html ?? '', 'Product Specs')
+                    || $vendorOverviewMissingProducts
+                    || str_contains($vendorOverviewPage->html ?? '', 'Vendor Reference')
+                    || str_contains($vendorOverviewPage->html ?? '', 'Source Inventory')
+                    || str_contains($vendorOverviewPage->html ?? '', 'Categories Supported')
+                    || str_contains($vendorOverviewPage->html ?? '', 'Quick Links')
+                ) {
+                    $vendorOverviewPage->forceFill([
+                        'html' => $finalVendorOverviewHtml,
+                        'text' => strip_tags($finalVendorOverviewHtml),
+                    ])->save();
+                    $vendorOverviewPage->refresh();
+                }
+
+                foreach ($vendorProductPages as $productName => $vendorProductPage) {
+                    $productData = collect($inventoryProducts)->firstWhere('name', $productName) ?? [];
+                    $productSummary = $productData['summary'] ?? ($vendorProductPage->name ?? '');
+                    $productUrl = $productData['url'] ?? null;
+                    $finalHtml = $this->buildVendorProductPageHtml(
+                        $brandName,
+                        $productName,
+                        $productSummary,
+                        $productUrl,
+                        $inventoryProducts,
+                        $brandProfiles[$brandName] ?? [],
+                        $vendorProductPages,
+                        $categoryName,
+                        $vendorOverviewPage
+                    );
+
+                    if (!empty($this->createdPageIds[$vendorProductPage->id])
+                        || !str_contains($vendorProductPage->html ?? '', 'Outcome Resources')
+                        || !str_contains($vendorProductPage->html ?? '', 'Product Specs')
+                        || str_contains($vendorProductPage->html ?? '', 'Use Cases')
+                        || str_contains($vendorProductPage->html ?? '', 'Internal Notes')
+                        || str_contains($vendorProductPage->html ?? '', 'Source Status')
+                    ) {
+                        $vendorProductPage->forceFill([
+                            'html' => $finalHtml,
+                            'text' => strip_tags($finalHtml),
+                        ])->save();
+                        $vendorProductPage->refresh();
+                    }
+                }
+
+                $this->deleteStaleGeneratedVendorProductPages(
+                    $vendorChapter,
                     $brandName,
-                    $productName,
-                    $productSummary,
-                    $productUrl,
-                    $vendorProductInventory[$brandName] ?? [],
-                    $brandProfiles[$brandName] ?? [],
-                    $vendorProductPages
+                    array_merge(
+                        [$brandName . ' - Overview'],
+                        array_map(
+                            fn (string $productName): string => $brandName . ' - ' . $productName,
+                            array_keys($vendorProductPages)
+                        )
+                    )
+                );
+            }
+        }
+
+        // Cleanup: remove stale full-content pages from secondary category chapters.
+        // These persist from seeds that ran before the primary-category model was enforced.
+        foreach ($this->productCategoryMap() as $categoryName => $vendorNames) {
+            $categoryBook = $createdBooks[$categoryName];
+
+            foreach ($vendorNames as $brandName) {
+                $primaryCategory = $this->vendorPrimaryCategory($brandName);
+                if ($primaryCategory === $categoryName) {
+                    continue;
+                }
+
+                $staleChapter = Chapter::query()
+                    ->where('book_id', '=', $categoryBook->id)
+                    ->where('name', '=', $brandName)
+                    ->first();
+
+                if ($staleChapter === null) {
+                    continue;
+                }
+
+                $crossLinkPageName = $brandName . ' - See ' . $primaryCategory;
+                Page::query()
+                    ->where('chapter_id', '=', $staleChapter->id)
+                    ->where('name', '!=', $crossLinkPageName)
+                    ->delete();
+            }
+        }
+
+        // Second pass: thin cross-link chapters for every secondary category a vendor appears in.
+        // One page per chapter routes users to the canonical vendor overview in the primary category.
+        foreach ($this->productCategoryMap() as $categoryName => $vendorNames) {
+            $categoryBook = $createdBooks[$categoryName];
+
+            foreach ($vendorNames as $brandName) {
+                $primaryCategory = $this->vendorPrimaryCategory($brandName);
+                if ($primaryCategory === $categoryName) {
+                    continue;
+                }
+
+                $primaryOverviewPage = $createdProductPages[$brandName] ?? null;
+
+                $crossLinkChapter = $this->createChapter(
+                    $categoryBook,
+                    $brandName,
+                    $brandName . ' products — full catalog in ' . $primaryCategory . '.',
+                    $byData
+                );
+                $createdChapters[$categoryName][$brandName] = $crossLinkChapter;
+
+                $crossLinkHtml = $this->buildCrossLinkPageHtml($brandName, $categoryName, $primaryCategory, $primaryOverviewPage);
+                $crossLinkPage = $this->createPage(
+                    $categoryBook,
+                    $crossLinkChapter,
+                    $brandName . ' - See ' . $primaryCategory,
+                    $brandName . ' product documentation is catalogued under ' . $primaryCategory . '.',
+                    $byData,
+                    $crossLinkHtml,
+                    1,
+                    false
                 );
 
-                if (!empty($this->createdPageIds[$vendorProductPage->id])) {
-                    $vendorProductPage->forceFill([
-                        'html' => $finalHtml,
-                        'text' => strip_tags($finalHtml),
+                if (!empty($this->createdPageIds[$crossLinkPage->id]) || !str_contains($crossLinkPage->html ?? '', 'Routing page only')) {
+                    $crossLinkPage->forceFill([
+                        'html' => $crossLinkHtml,
+                        'text' => strip_tags($crossLinkHtml),
                     ])->save();
-                    $vendorProductPage->refresh();
+                    $crossLinkPage->refresh();
                 }
             }
         }
 
-        $serviceCatalog = $this->serviceCatalog();
-        foreach ($serviceCatalog as $serviceName => $serviceConfig) {
-            $book = $createdBooks[$serviceName];
-
-            foreach ($serviceConfig['chapters'] as $chapterName => $chapterConfig) {
-                $chapter = $this->createChapter($book, $chapterName, $chapterConfig['description'], $byData);
-                $createdChapters[$serviceName][$chapterName] = $chapter;
+        $vendorIndexPage = $createdPages['Start Here'][null]['Vendor Index'] ?? null;
+        $vendorIndexHtml = $this->buildVendorIndexPageHtml($createdProductPages);
+        if ($vendorIndexPage instanceof Page) {
+            if (!empty($this->createdPageIds[$vendorIndexPage->id]) || !str_contains($vendorIndexPage->html ?? '', 'Vendor Directory')) {
+                $vendorIndexPage->forceFill([
+                    'html' => $vendorIndexHtml,
+                    'text' => strip_tags($vendorIndexHtml),
+                ])->save();
+                $vendorIndexPage->refresh();
             }
-        }
-
-        foreach ($serviceCatalog as $serviceName => $serviceConfig) {
-            $book = $createdBooks[$serviceName];
-
-            foreach ($serviceConfig['chapters'] as $chapterName => $chapterConfig) {
-                $chapter = $createdChapters[$serviceName][$chapterName];
-
-                foreach ($chapterConfig['pages'] as $pageConfig) {
-                    $pageName = $pageConfig['name'];
-                    $servicePageCounters[$serviceName][$chapterName] = ($servicePageCounters[$serviceName][$chapterName] ?? 0) + 1;
-                    $customHtml = $this->buildServiceCategoryHtml(
-                        $serviceName,
-                        $chapterName,
-                        $pageName,
-                        $pageConfig['summary'],
-                        $pageConfig['products'] ?? [],
-                        $createdProductPages,
-                        $createdBooks['Vendors']
-                    );
-
-                    $createdPages[$serviceName][$chapterName][$pageName] = $this->createPage(
-                        $book,
-                        $chapter,
-                        $pageName,
-                        $pageConfig['summary'],
-                        $byData,
-                        $customHtml,
-                        $servicePageCounters[$serviceName][$chapterName]
-                    );
-                }
-            }
+        } else {
+            $createdPages['Start Here'][null]['Vendor Index'] = $this->createPage(
+                $createdBooks['Start Here'],
+                null,
+                'Vendor Index',
+                'Vendor-first lookup that routes employees to the primary category.',
+                $byData,
+                $vendorIndexHtml,
+                2
+            );
         }
 
         $systemIndexPriority = ++$startHerePageCounters;
@@ -214,7 +351,7 @@ class ShadesOfTexasStructureSeeder extends Seeder
             $createdBooks['Start Here'],
             null,
             'System Categories',
-            'Customer-need navigation layer that routes into service categories and vendor/product pages.',
+            'Secondary customer-need routing layer that supports the product library.',
             $byData,
             $this->buildSystemCategoriesPageHtml($systemCategoryPages),
             $systemIndexPriority
@@ -224,28 +361,20 @@ class ShadesOfTexasStructureSeeder extends Seeder
             $createdPages['Start Here'][null][$pageName] = $page;
         }
 
-        $createdPages['Start Here'][null]['Start Here'] = $this->createPage(
+        $createdPages['Start Here'][null]['Find Your Path'] = $this->createPage(
             $createdBooks['Start Here'],
             null,
-            'Start Here',
-            'Task-based landing page for sales consultants and internal users.',
+            'Find Your Path',
+            'Task-based routing page for internal users.',
             $byData,
-            $this->buildStartHereTaskPageHtml($createdBooks, $createdPages, $createdProductPages),
+            $this->buildStartHereTaskPageHtml($createdBooks, $createdPages, $createdProductPages, $createdShelves),
             0
         );
-
-        $homePage = $this->createPage(
-            $createdBooks['Start Here'],
-            null,
-            'Sales Hub Home',
-            'Landing page for the sales team with quick links into the main resource areas.',
-            $byData,
-            $this->buildHomepageHtml($createdBooks, $createdChapters, $createdPages),
-            ++$startHerePageCounters
-        );
+        $this->removeStaleGeneratedStartHerePage($createdBooks['Start Here']);
+        $this->removeStaleGeneratedHomePage($createdBooks['Start Here']);
 
         setting()->put('app-homepage-type', 'page');
-        setting()->put('app-homepage', (string) $homePage->id);
+        setting()->put('app-homepage', (string) $createdPages['Start Here'][null]['Find Your Path']->id);
     }
 
     protected function applyBrandSettings(): void
@@ -744,17 +873,19 @@ HTML;
         // and managed routing pages instead of deleting the hub on each run.
     }
 
-    protected function createShelf(array $byData): Bookshelf
+    protected function createShelf(string $name, string $description, array $byData): Bookshelf
     {
-        $description = 'A world class document management platform';
-
         /** @var Bookshelf $shelf */
-        $shelf = Bookshelf::query()->where('name', '=', 'High Level')->first() ?? new Bookshelf();
+        $shelf = Bookshelf::query()->where('name', '=', $name)->first() ?? new Bookshelf();
         $shelf->forceFill(array_merge($byData, [
-            'name'            => 'High Level',
+            'name'            => $name,
             'description'     => $description,
             'description_html' => '<p>' . e($description) . '</p>',
         ]))->save();
+
+        app(BaseRepo::class)->refreshSlug($shelf);
+        $shelf->save();
+        $shelf->refresh();
         $shelf->rebuildPermissions();
 
         return $shelf;
@@ -776,6 +907,18 @@ HTML;
         $book->rebuildPermissions();
 
         return $book;
+    }
+
+    protected function syncShelfBookOrder(Bookshelf $shelf, array $bookNames): void
+    {
+        foreach (array_values($bookNames) as $index => $bookName) {
+            $book = Book::query()->where('name', '=', $bookName)->first();
+            if (!$book instanceof Book) {
+                continue;
+            }
+
+            $shelf->books()->updateExistingPivot($book->id, ['order' => $index + 1]);
+        }
     }
 
     protected function createChapter(Book $book, string $name, string $description, array $byData): Chapter
@@ -843,6 +986,66 @@ HTML;
         return $page;
     }
 
+    protected function deleteStaleGeneratedVendorProductPages(Chapter $chapter, string $brandName, array $expectedPageNames): void
+    {
+        Page::query()
+            ->where('chapter_id', '=', $chapter->id)
+            ->where('name', 'like', $brandName . ' - %')
+            ->whereNotIn('name', $expectedPageNames)
+            ->get()
+            ->each(function (Page $page): void {
+                $html = (string) $page->html;
+                $looksGenerated = str_contains($html, 'sotx-home')
+                    && (
+                        str_contains($html, 'Outcome Resources')
+                        || str_contains($html, 'Source Status')
+                        || str_contains($html, 'Generated by ShadesOfTexasStructureSeeder')
+                    );
+
+                if ($looksGenerated) {
+                    $page->delete();
+                }
+            });
+    }
+
+    protected function removeStaleGeneratedStartHerePage(Book $startHereBook): void
+    {
+        $oldPage = Page::query()
+            ->where('book_id', '=', $startHereBook->id)
+            ->whereNull('chapter_id')
+            ->where('name', '=', 'Start Here')
+            ->first();
+
+        if (!$oldPage instanceof Page) {
+            return;
+        }
+
+        $html = (string) $oldPage->html;
+        if (!str_contains($html, 'What do you need right now?') && !str_contains($html, 'Choose Your First Click')) {
+            return;
+        }
+
+        $oldPage->delete();
+    }
+
+    protected function removeStaleGeneratedHomePage(Book $startHereBook): void
+    {
+        $oldPages = Page::query()
+            ->where('book_id', '=', $startHereBook->id)
+            ->whereNull('chapter_id')
+            ->whereIn('name', ['Sales Hub Home', 'ShadeStack Home'])
+            ->get();
+
+        foreach ($oldPages as $oldPage) {
+            $html = (string) $oldPage->html;
+            if (!str_contains($html, 'Find the right answer fast.') && !str_contains($html, 'Sales Hub') && !str_contains($html, 'Choose Your First Click')) {
+                continue;
+            }
+
+            $oldPage->delete();
+        }
+    }
+
     protected function buildStandardPageHtml(string $name, string $summary): string
     {
         return <<<HTML
@@ -856,23 +1059,40 @@ HTML;
 HTML;
     }
 
-    protected function buildStartHereTaskPageHtml(array $books, array $pagesByBook, array $vendorPages): string
+    protected function buildStartHereTaskPageHtml(array $books, array $pagesByBook, array $vendorPages, array $shelves = []): string
     {
         $systemCategoriesUrl = $this->findPageUrl($pagesByBook, 'Start Here', null, 'System Categories') ?? ($books['Start Here']?->getUrl() ?? '#');
-        $warrantyUrl = $this->findPageUrl($pagesByBook, 'Start Here', null, 'Where to Find Product Info and Pricing') ?? ($books['Vendors']?->getUrl() ?? '#');
+        $vendorIndexUrl = $this->findPageUrl($pagesByBook, 'Start Here', null, 'Vendor Index') ?? ($books['Start Here']?->getUrl() ?? '#');
+        $warrantyUrl = $this->findPageUrl($pagesByBook, 'Start Here', null, 'Where to Find Product Info and Pricing') ?? ($shelves['Products']?->getUrl() ?? '#');
         $requestUpdateUrl = $this->findPageUrl($pagesByBook, 'Start Here', null, 'How to Request Missing Documents') ?? ($books['Start Here']?->getUrl() ?? '#');
         $howToUseUrl = $this->findPageUrl($pagesByBook, 'Start Here', null, 'How to Use This Hub') ?? ($books['Start Here']?->getUrl() ?? '#');
-        $vendorsUrl = $books['Vendors']?->getUrl() ?? '#';
-        $residentialUrl = $books['Residential']?->getUrl() ?? '#';
-        $commercialUrl = $books['Commercial']?->getUrl() ?? '#';
+        $productsUrl = $shelves['Products']?->getUrl() ?? '#';
+        $sopUrl = 'https://sotwt.sharepoint.com/:u:/s/FieldOperations/IQDYxnSFVm-wQ4JDMkGEN_mBAaJWR2xzRLQlbWB6VNf51IY?e=RbxrhP';
+
+        $primaryPaths = [
+            ['title' => 'I know the product type', 'summary' => 'Open Products, choose the SOT product category, then vendor, then product.', 'url' => $productsUrl, 'flag' => 'Product Type'],
+            ['title' => 'I know the vendor', 'summary' => 'Use the Vendor Index to jump to the vendor overview in its primary category.', 'url' => $vendorIndexUrl, 'flag' => 'Vendor'],
+            ['title' => 'I know the customer outcome', 'summary' => 'Use System Categories when the customer describes comfort, privacy, security, automation, or outdoor living needs.', 'url' => $systemCategoriesUrl, 'flag' => 'Outcome'],
+        ];
+
+        $primaryCards = '';
+        foreach ($primaryPaths as $path) {
+            $primaryCards .= <<<HTML
+<a href="{$path['url']}" class="sotx-card sotx-link-card sotx-task-card">
+    <div class="sotx-card-top">
+        <strong>{$path['title']}</strong>
+        <span class="sotx-flag">{$path['flag']}</span>
+    </div>
+    <span>{$path['summary']}</span>
+</a>
+HTML;
+        }
 
         $tasks = [
-            ['title' => 'Find Product', 'summary' => 'Start with the customer need, then choose Residential or Commercial context.', 'url' => $systemCategoriesUrl, 'flag' => 'Start'],
-            ['title' => 'Residential Job', 'summary' => 'Open homeowner categories before narrowing to sources or product details.', 'url' => $residentialUrl, 'flag' => 'Home'],
-            ['title' => 'Commercial Job', 'summary' => 'Open business and facility categories before narrowing to sources.', 'url' => $commercialUrl, 'flag' => 'Biz'],
-            ['title' => 'Check Warranty', 'summary' => 'Use the pricing and product-info guide before quoting coverage.', 'url' => $warrantyUrl, 'flag' => 'Verify'],
-            ['title' => 'Get Specs', 'summary' => 'Use the guide to find specs, drawings, tech data, and BIM from the right source page.', 'url' => $warrantyUrl, 'flag' => 'Source'],
-            ['title' => 'Install Guide', 'summary' => 'Use the guide to find install and training resources without skipping sales context.', 'url' => $warrantyUrl, 'flag' => 'Install'],
+            ['title' => 'Install Guide', 'summary' => 'Use the product page Install Guides section for official docs and field notes.', 'url' => $warrantyUrl, 'flag' => 'Install'],
+            ['title' => 'Get Product Specs', 'summary' => 'Open the product page Product Specs section for technical details and source links.', 'url' => $warrantyUrl, 'flag' => 'Spec'],
+            ['title' => 'Brochure / Collateral', 'summary' => 'Use the Sales Collateral section for brochures, sell sheets, and talking points.', 'url' => $warrantyUrl, 'flag' => 'Sell'],
+            ['title' => 'Check Warranty', 'summary' => 'Open the product page Warranty section before quoting coverage.', 'url' => $warrantyUrl, 'flag' => 'Verify'],
             ['title' => 'Pricing / Portal', 'summary' => 'Use dealer portals or rep-confirmed paths. Credentials stay in 1Password.', 'url' => $warrantyUrl, 'flag' => 'Login'],
             ['title' => 'Rep Contact', 'summary' => 'Use the hub guide when a deal needs source or rep confirmation.', 'url' => $howToUseUrl, 'flag' => 'Help'],
             ['title' => 'Request Update', 'summary' => 'Report stale links, missing files, unclear warranty, or bad product fit.', 'url' => $requestUpdateUrl, 'flag' => 'Fix'],
@@ -891,21 +1111,6 @@ HTML;
 HTML;
         }
 
-        $laneCards = <<<HTML
-<a href="{$residentialUrl}" class="sotx-card sotx-mini-card">
-    <h4>Residential</h4>
-    <p>Homeowner categories, sales context, and product/vendor routes.</p>
-</a>
-<a href="{$commercialUrl}" class="sotx-card sotx-mini-card">
-    <h4>Commercial</h4>
-    <p>Business, storefront, facility, and commercial project categories.</p>
-</a>
-<a href="{$vendorsUrl}" class="sotx-card sotx-mini-card">
-    <h4>Source Library</h4>
-    <p>Use after choosing a service path, when you need official vendor facts.</p>
-</a>
-HTML;
-
         return <<<HTML
 <div class="sotx-home">
     <section class="sotx-panel sotx-hero">
@@ -914,7 +1119,7 @@ HTML;
                 <p class="sotx-kicker">Start Here</p>
                 <h1>What do you need right now?</h1>
                 <p class="sotx-lede" style="max-width:42rem;">
-                    Pick the task that matches the sales conversation. The first path should be customer need and project type; source pages come in when you need proof, specs, warranty, pricing, or contacts.
+                    Choose the route that matches what you already know. Product facts live in Products; Workflow pages only help route the conversation.
                 </p>
             </div>
         </div>
@@ -925,7 +1130,7 @@ HTML;
             </div>
             <div class="sotx-metric">
                 <strong>Trusted</strong>
-                <span>Vendor source pages</span>
+                <span>Product resource pages</span>
             </div>
             <div class="sotx-metric">
                 <strong>Current</strong>
@@ -939,33 +1144,106 @@ HTML;
     </section>
 
     <section class="sotx-section">
-        <div class="sotx-task-grid">{$taskCards}</div>
+        <div class="sotx-section-head">
+            <div>
+                <h2>Choose Your First Click</h2>
+                <p class="sotx-note" style="margin:.35rem 0 0;">The fastest path depends on whether you know product type, vendor, or customer outcome.</p>
+            </div>
+        </div>
+        <div class="sotx-resource-grid">{$primaryCards}</div>
     </section>
 
     <section class="sotx-section">
         <div class="sotx-section-head">
             <div>
-                <h2>Browse By Lane</h2>
-                <p class="sotx-note" style="margin:.35rem 0 0;">Use these if you already know the project type, or need the source library after choosing a lane.</p>
+                <h2>Outcome Resources</h2>
+                <p class="sotx-note" style="margin:.35rem 0 0;">Use these after you land on the right product page.</p>
             </div>
         </div>
-        <div class="sotx-resource-grid">{$laneCards}</div>
+        <div class="sotx-task-grid">{$taskCards}</div>
+    </section>
+
+    <section class="sotx-section sotx-panel sotx-section-card">
+        <div class="sotx-card-top">
+            <div>
+                <p class="sotx-kicker">Protected Access</p>
+                <h2>SOPs</h2>
+                <p class="sotx-note" style="margin:.35rem 0 0;">Standard operating procedures are protected. You must have a login to access our SOPs.</p>
+            </div>
+            <a href="{$sopUrl}" class="sotx-pill" target="_blank" rel="noreferrer">Open SOPs</a>
+        </div>
     </section>
 </div>
 HTML;
     }
 
-    protected function buildStartHerePageHtml(string $pageName, string $summary, array $books = []): string
+    protected function buildVendorIndexPageHtml(array $vendorOverviewPages = []): string
+    {
+        $vendors = $this->vendorPrimaryCategories();
+        ksort($vendors, SORT_NATURAL | SORT_FLAG_CASE);
+
+        $rows = '';
+        foreach ($vendors as $vendorName => $primaryCategory) {
+            $vendorNameE = e($vendorName);
+            $primaryCategoryE = e($primaryCategory);
+            $overviewPage = $vendorOverviewPages[$vendorName] ?? null;
+            $overviewLink = $overviewPage instanceof Page
+                ? '<a href="' . e($overviewPage->getUrl()) . '" class="sotx-pill">' . e($vendorName . ' - Overview') . '</a>'
+                : '<span class="sotx-note">Overview page pending reseed.</span>';
+
+            $supportedCategoryChips = '';
+            foreach ($this->productCategoriesForVendor($vendorName) as $categoryName) {
+                $chipClass = $categoryName === $primaryCategory ? 'sotx-chip sotx-chip-link' : 'sotx-chip';
+                $supportedCategoryChips .= '<span class="' . e($chipClass) . '">' . e($categoryName) . '</span>';
+            }
+
+            $rows .= <<<HTML
+<section class="sotx-card sotx-mini-card sotx-template-block">
+    <div class="sotx-card-top" style="align-items:flex-start;">
+        <div>
+            <h4>{$vendorNameE}</h4>
+            <p class="sotx-note" style="margin-top:.35rem;">Primary category: <strong>{$primaryCategoryE}</strong></p>
+        </div>
+        {$overviewLink}
+    </div>
+    <p class="sotx-note" style="margin-top:.75rem;">Supported categories</p>
+    <div class="sotx-chip-list" style="margin-top:.45rem;">{$supportedCategoryChips}</div>
+</section>
+HTML;
+        }
+
+        return <<<HTML
+<div class="sotx-home">
+    <section class="sotx-panel sotx-card sotx-section-card">
+        <p class="sotx-kicker">Vendor Directory</p>
+        <h1>Vendor Index</h1>
+        <p class="sotx-lede">Use this page when you know the vendor name but not the primary SOT product category. Each vendor links to one canonical overview page; secondary categories only route here.</p>
+    </section>
+
+    <section class="sotx-section">
+        <div class="sotx-section-head">
+            <div>
+                <h2>All Vendors</h2>
+                <p class="sotx-note" style="margin:.35rem 0 0;">Primary category owns vendor/product documentation. Supported categories show where that vendor may also appear as a routing page.</p>
+            </div>
+        </div>
+        <div class="sotx-service-grid" style="margin-top:1rem;">{$rows}</div>
+    </section>
+</div>
+HTML;
+    }
+
+    protected function buildStartHerePageHtml(string $pageName, string $summary, array $books = [], array $shelves = []): string
     {
         if ($pageName === 'Source of Truth') {
-            return $this->buildSourcePageHtml($summary, $books);
+            return $this->buildSourcePageHtml($summary, $books, $shelves);
         }
 
         if ($pageName === 'How to Use This Hub') {
-            $quickLinks = $this->buildStartHereBookLinks($books);
-            $vendorLink = $this->buildBookLinkHtml($books, 'Vendors');
-            $residentialLink = $this->buildBookLinkHtml($books, 'Residential');
-            $commercialLink = $this->buildBookLinkHtml($books, 'Commercial');
+            $quickLinks = $this->buildStartHereBookLinks($books, $shelves);
+            $productLink = $this->buildShelfLinkHtml($shelves, 'Products');
+            $vendorIndexLink = $this->buildBookLinkHtml($books, 'Start Here', 'Vendor Index');
+            $systemCategoriesLink = $this->buildBookLinkHtml($books, 'Start Here', 'System Categories');
             $sourceLink = $this->buildBookLinkHtml($books, 'Start Here', 'Source of Truth');
 
             return $this->buildScaffoldPageHtml(
@@ -977,10 +1255,10 @@ HTML;
                         'title' => 'Pick the Right Lane',
                         'summary' => 'Start with the book that matches the kind of answer you need.',
                         'points' => [
-                            ['html' => '<strong>System Categories</strong> under Start Here are the customer-need layer: Climate Control, Privacy Control, Patio Extension, Security and Safety, and Home Automation &amp; Control.'],
-                            ['html' => $vendorLink . ' is where vendor overviews, product pages, warranty links, FAQ links, and official source links live.'],
-                            ['html' => $residentialLink . ' is where homeowner-facing service categories live: tint and film, window treatments, outdoor living, and glass work.'],
-                            ['html' => $commercialLink . ' is where business-facing service categories live: commercial film, patio systems, glazing, and commercial treatments.'],
+                            ['html' => $productLink . ' is the primary library: product category, then vendor, then product page.'],
+                            ['html' => '<strong>Product pages</strong> separate install guides, product specs, sales collateral, warranty, internal notes, and source status.'],
+                            ['html' => $vendorIndexLink . ' is the fallback when you know the vendor but not the primary product category.'],
+                            ['html' => $systemCategoriesLink . ' helps route customer outcomes directly into Products.'],
                             ['html' => $sourceLink . ' is the audit trail for official vendor sources when a link or claim needs to be checked.'],
                         ],
                     ],
@@ -988,31 +1266,31 @@ HTML;
                         'title' => 'Common Lookup Paths',
                         'summary' => 'Use these paths when you need an answer quickly during sales or support work.',
                         'points' => [
-                            ['html' => '<strong>Customer describes an outcome:</strong> open <strong>System Categories</strong>, choose the need, then follow the internal links to a sales category or vendor/product page.'],
-                            ['html' => '<strong>Customer asks what we carry:</strong> open ' . $vendorLink . ', pick the vendor, then open the exact product page.'],
-                            ['html' => '<strong>Customer asks about warranty:</strong> open the vendor page and use the <strong>Warranty Information</strong> section before quoting coverage.'],
-                            ['html' => '<strong>Customer asks a practical product question:</strong> open the product page first, then use the vendor <strong>FAQs</strong> section if the product page does not answer it.'],
-                            ['html' => '<strong>You only know the project type:</strong> start in ' . $residentialLink . ' or ' . $commercialLink . ', then use the linked vendor chips on that service page.'],
+                            ['html' => '<strong>Employee needs a product answer:</strong> open ' . $productLink . ', choose the product category, then open the vendor and product page.'],
+                            ['html' => '<strong>Employee knows the vendor:</strong> open the product category that matches the product type, then use the vendor overview or product page.'],
+                            ['html' => '<strong>Customer asks about warranty:</strong> open the product page and use the <strong>Warranty</strong> section before quoting coverage.'],
+                            ['html' => '<strong>Customer asks for collateral:</strong> open the product page and use <strong>Sales Collateral</strong> rather than an old local PDF.'],
+                            ['html' => '<strong>You only know the customer outcome:</strong> start in ' . $systemCategoriesLink . ', then open the linked vendor overview in Products.'],
                         ],
                     ],
                     [
                         'title' => 'When to Slow Down',
                         'summary' => 'Some answers need verification before they go to a customer.',
                         'points' => [
-                            'Do not duplicate specs, warranties, contacts, dealer portals, install guides, or collateral on routing pages.',
+                            'Do not duplicate specs, warranties, contacts, dealer portals, install guides, or collateral across multiple pages.',
                             'Do not promise warranty coverage without checking the exact product line, install conditions, and purchase date.',
                             'Do not use a vendor homepage as proof of warranty terms unless the vendor does not publish a public warranty page and the page says to confirm directly.',
-                            'If a link looks stale, correct the vendor/product page in BookStack after verifying the official source or rep response.',
+                            'If a link looks stale, correct the product page in BookStack after verifying the official source or rep response.',
                         ],
                     ],
                     [
                         'title' => 'Page Jobs',
                         'summary' => 'Every page has one job so the hub stays easy to maintain.',
                         'points' => [
-                            'System Category pages route by customer outcome; they do not hold full specs, warranty text, or portal credentials.',
-                            'Residential and Commercial pages route by sales workflow and should link into vendor/product pages instead of repeating vendor documentation.',
-                            'Vendor pages own contacts, official links, warranties, FAQs, dealer-portal references, training links, and collateral.',
-                            'Product pages own product-line summaries, best-fit notes, related lines, quick links, and warranty or FAQ paths.',
+                            'Product category chapters route to the relevant vendors and product pages.',
+                            'System Category pages route by customer outcome and should link into Products instead of repeating product documentation.',
+                            'Vendor overview pages own vendor-wide contacts, official links, portals, and general resources.',
+                            'Product pages own product-specific install guides, product specs, sales collateral, warranty, internal notes, and source status.',
                             'Start Here pages explain navigation, requests, source checks, and governance rather than storing product detail.',
                         ],
                     ],
@@ -1021,11 +1299,11 @@ HTML;
                         'summary' => 'These are the patterns that make the hub harder to trust over time.',
                         'points' => [
                             'Do not create top-level books for specs, warranties, FAQs, training, or collateral.',
-                            'Do not link a routing page straight to an external vendor PDF when a vendor/product page should own that link.',
+                            'Do not link a routing page straight to an external vendor PDF when a product page should own that link.',
                             'Do not repeat warranty, pricing, or spec details across multiple service pages.',
                             'Do not put usernames, passwords, recovery codes, or shared credentials in BookStack.',
-                            'Do not rename the Vendors area to Products; Vendors is the canonical source-of-truth book.',
-                            'Do not treat System Categories as content dumps; they are routing pages.',
+                            'Do not add new product resources without one of the four outcome sections owning it.',
+                            'Keep future partnership documentation outcome-built and separate from the core product library until that structure is ready.',
                         ],
                     ],
                 ],
@@ -1034,10 +1312,10 @@ HTML;
         }
 
         if ($pageName === 'Where to Find Product Info and Pricing') {
-            $quickLinks = $this->buildStartHereBookLinks($books);
-            $vendorLink = $this->buildBookLinkHtml($books, 'Vendors');
-            $residentialLink = $this->buildBookLinkHtml($books, 'Residential');
-            $commercialLink = $this->buildBookLinkHtml($books, 'Commercial');
+            $quickLinks = $this->buildStartHereBookLinks($books, $shelves);
+            $productLink = $this->buildShelfLinkHtml($shelves, 'Products');
+            $vendorIndexLink = $this->buildBookLinkHtml($books, 'Start Here', 'Vendor Index');
+            $systemCategoriesLink = $this->buildBookLinkHtml($books, 'Start Here', 'System Categories');
 
             return $this->buildScaffoldPageHtml(
                 'Start Here',
@@ -1048,11 +1326,14 @@ HTML;
                         'title' => 'Where Each Type of Info Lives',
                         'summary' => 'Keep the product and pricing details in the right place.',
                         'points' => [
-                            ['html' => '<strong>Product lines:</strong> use ' . $vendorLink . ' and open the product page under the vendor.'],
-                            ['html' => '<strong>Service fit:</strong> use ' . $residentialLink . ' or ' . $commercialLink . ' when you need to know which vendors apply to a project type.'],
-                            ['html' => '<strong>Warranty:</strong> use the vendor page or product page <strong>Warranty Information</strong> section.'],
-                            ['html' => '<strong>FAQs:</strong> use the vendor page or product page <strong>FAQs</strong> section for care, ordering, and common support questions.'],
-                            ['html' => '<strong>Pricing:</strong> use the vendor page <strong>Quick Links</strong>, dealer portal links, or the listed rep/contact path. If a vendor requires login access, do not quote from memory.'],
+                            ['html' => '<strong>Product lines:</strong> use ' . $productLink . ' and open the matching category, vendor, and product page.'],
+                            ['html' => '<strong>Vendor-first lookup:</strong> use ' . $vendorIndexLink . ' when you know the vendor but not the primary category.'],
+                            ['html' => '<strong>Outcome fit:</strong> use ' . $systemCategoriesLink . ' when you know the customer need but not the product type.'],
+                            ['html' => '<strong>Warranty:</strong> use the product page <strong>Warranty</strong> section.'],
+                            ['html' => '<strong>Install:</strong> use the product page <strong>Install Guides</strong> section.'],
+                            ['html' => '<strong>Product specs:</strong> use the product page <strong>Product Specs</strong> section.'],
+                            ['html' => '<strong>Sales collateral:</strong> use the product page <strong>Sales Collateral</strong> section.'],
+                            ['html' => '<strong>Pricing:</strong> use the vendor page quick links, dealer portal links, or the listed rep/contact path. If a vendor requires login access, do not quote from memory.'],
                         ],
                     ],
                     [
@@ -1060,7 +1341,7 @@ HTML;
                         'summary' => 'Use the current sources instead of old attachments or memory.',
                         'points' => [
                             'Confirm the exact product name and series.',
-                            'Confirm whether the job is residential or commercial.',
+                            'Confirm the customer outcome and product category.',
                             'Confirm warranty coverage before using it as a selling point.',
                             'Confirm whether pricing is public, dealer-only, or rep-provided.',
                             'If the vendor page says access is pending or direct confirmation is required, ask for the missing detail before quoting.',
@@ -1070,18 +1351,18 @@ HTML;
                         'title' => 'Status Tags',
                         'summary' => 'Use tags to show what is reliable, gated, pending, or needs replacement.',
                         'points' => [
-                            'Audited means the source is in the current audit scope and intentionally included.',
-                            'Login Required means the resource is a portal, dealer app, pricing page, or protected source. Credentials stay in 1Password.',
-                            'Pending means access, source replacement, or vendor confirmation is still needed.',
-                            'Rep Confirm Needed means a vendor rep/contact path must be used before quoting or promising details.',
-                            'Broken / Replace means the link failed clearly or points to a source that should be replaced.',
+                            'Complete means all expected product resources are present.',
+                            'Partial means at least one major outcome resource is missing.',
+                            'Needed means documentation is required but has not been sourced.',
+                            'Pending Review means documentation exists but needs validation.',
+                            'Not Applicable means that resource type does not apply.',
                         ],
                     ],
                     [
                         'title' => 'Credential Rule',
                         'summary' => 'BookStack can point to a protected resource, but it must not contain secrets.',
                         'points' => [
-                            'Vendor pages may list dealer-portal URLs and the matching 1Password item name.',
+                            'Vendor overview pages may list dealer-portal URLs and the matching 1Password item name.',
                             'Actual usernames, passwords, recovery codes, and shared credentials live in 1Password only.',
                             'Keep login-gated resources visible but labeled Login Required so reps know the path exists.',
                             'Warranty, pricing, install, and certification details must be rep-confirmed before being quoted to a customer.',
@@ -1093,10 +1374,9 @@ HTML;
         }
 
         if ($pageName === 'How to Request Missing Documents') {
-            $quickLinks = $this->buildStartHereBookLinks($books);
-            $vendorLink = $this->buildBookLinkHtml($books, 'Vendors');
-            $residentialLink = $this->buildBookLinkHtml($books, 'Residential');
-            $commercialLink = $this->buildBookLinkHtml($books, 'Commercial');
+            $quickLinks = $this->buildStartHereBookLinks($books, $shelves);
+            $productLink = $this->buildShelfLinkHtml($shelves, 'Products');
+            $systemCategoriesLink = $this->buildBookLinkHtml($books, 'Start Here', 'System Categories');
             $sourceLink = $this->buildBookLinkHtml($books, 'Start Here', 'Source of Truth');
 
             return $this->buildScaffoldPageHtml(
@@ -1110,7 +1390,7 @@ HTML;
                         'points' => [
                             'List the vendor, product line, and exact document type.',
                             'Include the job name or customer context if it matters.',
-                            'Include whether this is for a residential or commercial project.',
+                            'Include the customer outcome and product category if known.',
                             'Add the link you already checked, even if it was wrong or incomplete.',
                             'Say what decision is blocked: pricing, warranty, install detail, product fit, or customer answer.',
                         ],
@@ -1119,19 +1399,19 @@ HTML;
                         'title' => 'Where to Check First',
                         'summary' => 'Most missing-document requests can be narrowed down before asking someone else.',
                         'points' => [
-                            ['html' => 'Check ' . $vendorLink . ' for vendor-level product, warranty, FAQ, and quick links.'],
-                            ['html' => 'Check ' . $residentialLink . ' or ' . $commercialLink . ' if you only know the service category.'],
+                            ['html' => 'Check ' . $productLink . ' for the product category, vendor, product page, and outcome resource sections.'],
+                            ['html' => 'Check ' . $systemCategoriesLink . ' if you only know the customer outcome.'],
                             ['html' => 'Check ' . $sourceLink . ' if the issue is a bad link, missing vendor source, or conflicting vendor information.'],
-                            'If the source page says rep confirmation is required, collect the rep response and add it back to the vendor page later.',
+                            'If the product page says rep confirmation is required, collect the rep response and add it back to the product page later.',
                         ],
                     ],
                     [
                         'title' => 'Update Order',
                         'summary' => 'Use this order so rep updates land where the team can maintain them.',
                         'points' => [
-                            'Edit the matching vendor or product page directly in BookStack.',
+                            'Edit the matching product page directly in BookStack.',
                             'Bump the last-verified note after checking the official source or rep response.',
-                            'Update Residential and Commercial service pages only when positioning or routing changed.',
+                            'Update System Category routing only when outcome-to-product routing changed.',
                             'Post major vendor changes, discontinuations, or urgent corrections to Recent Changes.',
                             'Update readme.md, docs/navigation.md, or the seeder only when the structure itself changed.',
                         ],
@@ -1151,7 +1431,7 @@ HTML;
         }
 
         if ($pageName === 'Recent Changes') {
-            $quickLinks = $this->buildStartHereBookLinks($books);
+            $quickLinks = $this->buildStartHereBookLinks($books, $shelves);
 
             return $this->buildScaffoldPageHtml(
                 'Start Here',
@@ -1175,7 +1455,7 @@ HTML;
                             'Date of change.',
                             'Vendor or product affected.',
                             'What changed and why reps should care.',
-                            'Link to the vendor/product page that owns the full detail.',
+                            'Link to the product page that owns the full detail.',
                             'Owner or verifier for follow-up.',
                         ],
                     ],
@@ -1197,9 +1477,9 @@ HTML;
         return $this->buildScaffoldPageHtml('Start Here', $pageName, $summary, []);
     }
 
-    protected function buildSourcePageHtml(string $summary, array $books = []): string
+    protected function buildSourcePageHtml(string $summary, array $books = [], array $shelves = []): string
     {
-        $quickLinks = $this->buildStartHereBookLinks($books);
+        $quickLinks = $this->buildStartHereBookLinks($books, $shelves);
         $brandPoints = [];
         $parsedSourceBrands = $this->parsedSourceMarkdownBrands();
         $sourceBrands = array_unique(array_merge(
@@ -1229,13 +1509,6 @@ HTML;
             ];
         }
 
-        $servicePoints = [];
-        foreach ($this->sourceRegistry()['services'] as $serviceName => $serviceConfig) {
-            $servicePoints[] = [
-                'html' => '<strong>' . e($serviceName) . '</strong><br>' . e($serviceConfig['summary']) . '<br>Brands: ' . e(implode(', ', $serviceConfig['sources'])),
-            ];
-        }
-
         return $this->buildScaffoldPageHtml(
             'Start Here',
             'Source of Truth',
@@ -1245,30 +1518,42 @@ HTML;
                     'title' => 'Read This First',
                     'summary' => 'Use this page when you need to verify where vendor information came from.',
                     'points' => [
-                        'Use System Categories when the customer describes a need or outcome instead of naming a product.',
-                        'Use the vendor page first during normal sales lookup.',
-                        'Use this page when a vendor link breaks, a customer asks for proof, or two pages disagree.',
-                        'For day-to-day content, update the matching vendor/product page in BookStack after verifying the official source or rep response.',
+                        'Use Products first during normal lookup: product category, vendor, product, then outcome resources.',
+                        'Use System Categories only when the customer outcome is clearer than the product type.',
+                        'Use this page when a source link breaks, a customer asks for proof, or two pages disagree.',
+                        'For day-to-day content, update the matching product page in BookStack after verifying the official source or rep response.',
                     ],
                 ],
                 [
                     'title' => 'Navigation Model',
                     'summary' => 'This is the path the hub is built around.',
                     'points' => [
-                        'Customer Need -> System Category -> Residential/Commercial Category -> Source Reference',
-                        'System and service pages route the team to the right place.',
-                        'Vendor and product pages in BookStack own the facts that change over time.',
+                        'Start Here -> SOT Product Category -> Vendor -> Product -> Outcome Resources',
+                        'Product pages own the facts that change over time.',
+                        'System Categories route customer outcomes into Products.',
                     ],
                 ],
                 [
                     'title' => 'Status Tags',
                     'summary' => 'Use these labels to make link health and source confidence visible.',
                     'points' => [
-                        'Audited: in current audit scope; treat as intentionally included.',
-                        'Login Required: portal, dealer app, pricing, or protected resource. Credentials go in 1Password, not BookStack.',
-                        'Pending: access, source replacement, or vendor confirmation still needed.',
-                        'Rep Confirm Needed: use the vendor rep/contact path before quoting or promising details.',
-                        'Broken / Replace: link failed clearly or points to a page that should be replaced.',
+                        'Complete: all expected resources are present.',
+                        'Partial: some resources are present, but at least one major outcome category is missing.',
+                        'Needed: documentation is known to be required but has not been sourced.',
+                        'Pending Review: documentation exists but needs validation.',
+                        'Not Applicable: this outcome category does not apply.',
+                    ],
+                ],
+                [
+                    'title' => 'Source Collection Pass',
+                    'summary' => 'Official-link collection is tracked in docs/source-collection.md before product pages are marked complete.',
+                    'points' => [
+                        '104 outcome resource rows are triaged across 26 vendors.',
+                        '104 rows now have a source location, official link, portal reference, or explicit rep-needed note.',
+                        '96 rows now have official public, portal, or official-support links.',
+                        '8 rows are intentionally marked as Rep Needed or Login Required instead of using weak public sources: Austin Screens and Dallas Flat Glass.',
+                        'Recheck status: 83 Partial, 13 Needed, and 8 Pending Review.',
+                        'Rows marked Partial still need product-level mapping or rep confirmation before the corresponding BookStack product pages should be treated as complete.',
                     ],
                 ],
                 [
@@ -1277,18 +1562,13 @@ HTML;
                     'points' => $brandPoints,
                 ],
                 [
-                    'title' => 'Service Source Map',
-                    'summary' => 'Which vendors support each residential and commercial service area.',
-                    'points' => $servicePoints,
-                ],
-                [
                     'title' => 'How to Keep This Current',
                     'summary' => 'Use this order when a vendor source changes or a bad link is found.',
                     'points' => [
-                        'Update the matching vendor/product page in BookStack first; that is the day-to-day content source of truth.',
+                        'Update the matching product page in BookStack first; that is the day-to-day content source of truth.',
                         'Bump the last-verified note after checking the official source or rep response.',
                         'Use docs/source.md and docs/products.md as seed/import references, audit inputs, or recovery data, not routine editing targets.',
-                        'Update Residential or Commercial pages only if the change affects how we position or route a service category.',
+                        'Update System Category routing only if the change affects outcome-to-product routing.',
                         'Leave a clear note when the vendor does not publish a public source and direct rep confirmation is required.',
                     ],
                 ],
@@ -1318,20 +1598,11 @@ HTML
         );
     }
 
-    protected function buildStartHereBookLinks(array $books): string
+    protected function buildStartHereBookLinks(array $books, array $shelves = []): string
     {
         $links = [];
-        foreach ([
-            'Start Here',
-            'Residential',
-            'Commercial',
-            'Vendors',
-        ] as $bookName) {
-            if (empty($books[$bookName])) {
-                continue;
-            }
-
-            $links[] = '<a href="' . e($books[$bookName]->getUrl()) . '" class="sotx-pill">' . e($bookName) . '</a>';
+        if (!empty($shelves['Products'])) {
+            $links[] = '<a href="' . e($shelves['Products']->getUrl()) . '" class="sotx-pill">Products</a>';
         }
 
         return implode('', $links);
@@ -1352,6 +1623,16 @@ HTML
         }
 
         return '<a href="' . e($books[$bookName]->getUrl()) . '">' . e($label) . '</a>';
+    }
+
+    protected function buildShelfLinkHtml(array $shelves, string $shelfName, ?string $label = null): string
+    {
+        $label ??= $shelfName;
+        if (empty($shelves[$shelfName])) {
+            return e($label);
+        }
+
+        return '<a href="' . e($shelves[$shelfName]->getUrl()) . '">' . e($label) . '</a>';
     }
 
     protected function sourceRegistry(): array
@@ -1608,34 +1889,114 @@ HTML
 
     protected function topLevelBooks(): array
     {
-        return [
+        $books = [
             'Start Here' => [
-                'description' => 'Entry point for the sales team. Start here when you need to find the right resource quickly.',
+                'description' => 'Entry point for internal employees who need product resources quickly.',
+                'shelf' => 'Workflow',
                 'pages' => [
                     ['name' => 'Source of Truth', 'summary' => 'Master source map for brands, services, and reference documents.'],
+                    ['name' => 'Vendor Index', 'summary' => 'Vendor-first lookup that routes employees to the primary category.'],
                     ['name' => 'How to Use This Hub', 'summary' => 'Quick guide to navigating the knowledge base.'],
                     ['name' => 'Where to Find Product Info and Pricing', 'summary' => 'Explains where product details and pricing references live.'],
                     ['name' => 'How to Request Missing Documents', 'summary' => 'How to request a file or ask for a new reference page.'],
                     ['name' => 'Recent Changes', 'summary' => 'Team-facing announcements for discontinuations, major source updates, and urgent corrections.'],
                 ],
             ],
-            'Residential' => [
-                'description' => 'Residential sales resources organized by the categories the team actually sells every day.',
-            ],
-            'Commercial' => [
-                'description' => 'Commercial sales resources organized by the categories the team actually sells every day.',
-            ],
-            'Vendors' => [
-                'description' => 'All vendor and product references in one place, grouped so reps can find the right line fast.',
-            ],
+        ];
+
+        foreach (array_keys($this->productCategoryMap()) as $categoryName) {
+            $books[$categoryName] = [
+                'description' => 'SOT product category for ' . $categoryName . ' resources.',
+                'shelf' => 'Products',
+            ];
+        }
+
+        return $books;
+    }
+
+    protected function shelfConfigs(): array
+    {
+        return [
+            'Workflow' => ['description' => 'Task navigation, source rules, and sales workflow support.'],
+            'Products' => ['description' => 'Product category picker for vendor and product documentation.'],
         ];
     }
 
-    protected function resourceBooks(): array
+    protected function productCategoryMap(): array
     {
         return [
-            'Vendors' => ['description' => 'All vendors and product lines in one place for fast reference.'],
+            'Shades' => ['Hunter Douglas', 'Alta', 'Norman', 'Draper', 'Eclipse', 'Vantis'],
+            'Shutters' => ['Hunter Douglas', 'Alta', 'Norman', 'Rollock Security Shutters'],
+            'Screens' => ['Austin Screens', 'Draper', 'ShadePro Shade Systems', 'Eclipse'],
+            'Pergolas' => ['ShadePro Shade Systems', 'Four Seasons Patio Systems', 'Eclipse'],
+            'Patio Covers' => ['Old Castle / US Aluminum', 'ShadePro Shade Systems', 'Four Seasons Patio Systems', 'Eclipse'],
+            'Tint & Film' => ['3M', 'Accent', 'Sunbelt', 'Avery Dennison', 'Decorative Films', 'SolX', 'Frost', 'SmartTint', 'Ghost Glass', 'Vantis'],
+            'Windows' => ['Andersen', 'Pella', 'JELD-WEN', 'Dallas Flat Glass', 'Old Castle / US Aluminum'],
+            'Doors' => ['Andersen', 'Pella', 'JELD-WEN', 'CRL'],
+            'Glass & Windows' => ['Old Castle / US Aluminum', 'Andersen', 'Pella', 'JELD-WEN', 'CRL', 'Dallas Flat Glass', 'Ghost Glass'],
+            'Outdoor Living' => ['Austin Screens', 'Draper', 'ShadePro Shade Systems', 'Four Seasons Patio Systems', 'Eclipse'],
+            'Smart & Automation' => ['Somfy', 'Vantis', 'SmartTint', 'Ghost Glass'],
         ];
+    }
+
+    protected function vendorPrimaryCategories(): array
+    {
+        return [
+            'Hunter Douglas'            => 'Shades',
+            'Alta'                      => 'Shades',
+            'Norman'                    => 'Shades',
+            'Draper'                    => 'Shades',
+            'Eclipse'                   => 'Screens',
+            'Rollock Security Shutters' => 'Shutters',
+            'Austin Screens'            => 'Screens',
+            'ShadePro Shade Systems'    => 'Pergolas',
+            'Four Seasons Patio Systems' => 'Pergolas',
+            'Old Castle / US Aluminum'  => 'Windows',
+            '3M'                        => 'Tint & Film',
+            'Accent'                    => 'Tint & Film',
+            'Sunbelt'                   => 'Tint & Film',
+            'Avery Dennison'            => 'Tint & Film',
+            'Decorative Films'          => 'Tint & Film',
+            'SolX'                      => 'Tint & Film',
+            'Frost'                     => 'Tint & Film',
+            'SmartTint'                 => 'Tint & Film',
+            'Ghost Glass'               => 'Tint & Film',
+            'Andersen'                  => 'Windows',
+            'Pella'                     => 'Windows',
+            'JELD-WEN'                  => 'Windows',
+            'Dallas Flat Glass'         => 'Windows',
+            'CRL'                       => 'Doors',
+            'Somfy'                     => 'Smart & Automation',
+            'Vantis'                    => 'Smart & Automation',
+        ];
+    }
+
+    protected function vendorPrimaryCategory(string $vendorName): string
+    {
+        $map = $this->vendorPrimaryCategories();
+        if (isset($map[$vendorName])) {
+            return $map[$vendorName];
+        }
+
+        foreach ($this->productCategoryMap() as $categoryName => $vendors) {
+            if (in_array($vendorName, $vendors, true)) {
+                return $categoryName;
+            }
+        }
+
+        return '';
+    }
+
+    protected function productCategoriesForVendor(string $brandName): array
+    {
+        $categories = [];
+        foreach ($this->productCategoryMap() as $categoryName => $vendorNames) {
+            if (in_array($brandName, $vendorNames, true)) {
+                $categories[] = $categoryName;
+            }
+        }
+
+        return $categories;
     }
 
     protected function systemCategories(): array
@@ -1645,70 +2006,30 @@ HTML
                 'name' => 'Climate Control',
                 'summary' => 'Reduce heat, glare, and energy load.',
                 'examples' => ['window film', 'motorized shades', 'solar screens', 'exterior shades', 'awning shade', 'energy load reduction'],
-                'services' => [
-                    ['book' => 'Residential', 'chapter' => 'Tint & Film', 'page' => 'Solar Film'],
-                    ['book' => 'Residential', 'chapter' => 'Window Treatments', 'page' => 'Window Shades'],
-                    ['book' => 'Residential', 'chapter' => 'Outdoor Living', 'page' => 'Patio Awnings'],
-                    ['book' => 'Residential', 'chapter' => 'Outdoor Living', 'page' => 'Patio Screens'],
-                    ['book' => 'Residential', 'chapter' => 'Glass & Windows', 'page' => 'Window Glass'],
-                    ['book' => 'Commercial', 'chapter' => 'Solar Control & Safety', 'page' => 'Sun Control Film'],
-                    ['book' => 'Commercial', 'chapter' => 'Patio Screens & Awnings', 'page' => 'Patio Screens'],
-                    ['book' => 'Commercial', 'chapter' => 'Window Treatments', 'page' => 'Roller Shades'],
-                ],
                 'vendors' => ['Somfy', 'Vantis', 'Accent', '3M', 'Sunbelt', 'Avery Dennison', 'Alta', 'Hunter Douglas', 'Austin Screens', 'Draper'],
             ],
             [
                 'name' => 'Privacy Control',
                 'summary' => 'Create privacy without sacrificing design.',
                 'examples' => ['decorative film', 'frosted film', 'solar screens', 'exterior shades', 'shutters', 'privacy shades'],
-                'services' => [
-                    ['book' => 'Residential', 'chapter' => 'Tint & Film', 'page' => 'Privacy Film'],
-                    ['book' => 'Residential', 'chapter' => 'Window Treatments', 'page' => 'Window Shades'],
-                    ['book' => 'Residential', 'chapter' => 'Window Treatments', 'page' => 'Window Shutters'],
-                    ['book' => 'Residential', 'chapter' => 'Outdoor Living', 'page' => 'Patio Screens'],
-                    ['book' => 'Commercial', 'chapter' => 'Solar Control & Safety', 'page' => 'Privacy Film'],
-                    ['book' => 'Commercial', 'chapter' => 'Window Treatments', 'page' => 'Roller Shades'],
-                    ['book' => 'Commercial', 'chapter' => 'Patio Screens & Awnings', 'page' => 'Patio Screens'],
-                ],
                 'vendors' => ['Decorative Films', 'SolX', 'Frost', 'Accent', '3M', 'Sunbelt', 'Avery Dennison', 'Alta', 'Hunter Douglas', 'Austin Screens', 'Draper'],
             ],
             [
                 'name' => 'Patio Extension',
                 'summary' => 'Extend indoor comfort into outdoor living.',
                 'examples' => ['commercial storefront', 'patio doors', 'patio systems', 'shade systems', 'awnings', 'sunrooms'],
-                'services' => [
-                    ['book' => 'Residential', 'chapter' => 'Outdoor Living', 'page' => 'Shade Structures'],
-                    ['book' => 'Residential', 'chapter' => 'Outdoor Living', 'page' => 'Patio Awnings'],
-                    ['book' => 'Residential', 'chapter' => 'Outdoor Living', 'page' => 'Patio Screens'],
-                    ['book' => 'Residential', 'chapter' => 'Glass & Windows', 'page' => 'Window Glass'],
-                    ['book' => 'Commercial', 'chapter' => 'Patio Screens & Awnings', 'page' => 'Patio Awnings'],
-                    ['book' => 'Commercial', 'chapter' => 'Patio Screens & Awnings', 'page' => 'Patio Screens'],
-                    ['book' => 'Commercial', 'chapter' => 'Glass & Windows', 'page' => 'Commercial Glazing'],
-                ],
                 'vendors' => ['Old Castle / US Aluminum', 'Andersen', 'JELD-WEN', 'ShadePro Shade Systems', 'Four Seasons Patio Systems', 'Eclipse'],
             ],
             [
                 'name' => 'Security and Safety',
                 'summary' => 'Protect people, property, and peace of mind.',
                 'examples' => ['security film', 'safety film', 'security shutters', 'forced-entry delay', 'storm protection'],
-                'services' => [
-                    ['book' => 'Residential', 'chapter' => 'Tint & Film', 'page' => 'Safety & Security Film'],
-                    ['book' => 'Residential', 'chapter' => 'Window Treatments', 'page' => 'Safety / Storm Shutters'],
-                    ['book' => 'Commercial', 'chapter' => 'Solar Control & Safety', 'page' => 'Safety & Security Film'],
-                    ['book' => 'Commercial', 'chapter' => 'Glass & Windows', 'page' => 'Commercial Glazing'],
-                ],
                 'vendors' => ['Accent', '3M', 'Sunbelt', 'Avery Dennison', 'Rollock Security Shutters'],
             ],
             [
                 'name' => 'Home Automation & Control',
                 'summary' => 'Automate comfort, light, shade, and privacy.',
                 'examples' => ['motorized shades', 'smart controls', 'shade automation', 'remote control', 'scheduled scenes'],
-                'services' => [
-                    ['book' => 'Residential', 'chapter' => 'Window Treatments', 'page' => 'Window Shades'],
-                    ['book' => 'Residential', 'chapter' => 'Outdoor Living', 'page' => 'Patio Awnings'],
-                    ['book' => 'Commercial', 'chapter' => 'Window Treatments', 'page' => 'Roller Shades'],
-                    ['book' => 'Commercial', 'chapter' => 'Patio Screens & Awnings', 'page' => 'Patio Awnings'],
-                ],
                 'vendors' => ['Somfy', 'Vantis'],
             ],
         ];
@@ -1742,24 +2063,24 @@ HTML;
         return $this->buildScaffoldPageHtml(
             'Start Here',
             'System Categories',
-            'Start with the customer need, then choose the Residential or Commercial sales category that matches the project.',
+            'Secondary customer-outcome routing for when the product category is not obvious yet.',
             [
                 [
                     'title' => 'How This Layer Works',
-                    'summary' => 'System categories are routing pages, not document libraries.',
+                    'summary' => 'System categories are secondary routing pages, not the primary product library.',
                     'points' => [
                         'Use them when a customer describes the outcome they want rather than a specific product.',
-                        'Open the matching Residential or Commercial category for sales context before jumping to source documents.',
-                        'Use vendor and product pages only when the service page sends you there for specs, warranties, install guides, training, collateral, contacts, or portal references.',
+                        'Use them only when the product category is not obvious yet.',
+                        'Open Products for specs, sales collateral, install guides, warranty, internal notes, and source status.',
                     ],
                 ],
                 [
                     'title' => 'Canonical Path',
                     'summary' => 'This keeps the hub easy to maintain as vendors, products, and sources change.',
                     'points' => [
-                        'Customer Need -> System Category -> Residential/Commercial Category -> Source Reference',
-                        'Do not duplicate vendor facts on routing pages.',
-                        'When a vendor source changes, update the vendor/product page first.',
+                        'Start Here -> SOT Product Category -> Vendor -> Product -> Outcome Resources',
+                        'Do not duplicate product facts on routing pages.',
+                        'When a vendor source changes, update the product page first.',
                     ],
                 ],
             ],
@@ -1767,8 +2088,8 @@ HTML;
 <section class="sotx-section">
     <div class="sotx-section-head">
         <div>
-            <h2>Choose the Customer Need</h2>
-            <p class="sotx-note" style="margin:.35rem 0 0;">Each card opens a routing page with Residential and Commercial next steps.</p>
+            <h2>Secondary Outcome Routing</h2>
+            <p class="sotx-note" style="margin:.35rem 0 0;">Each card opens a support page for cases where the product category is not obvious yet.</p>
         </div>
     </div>
     <div class="sotx-service-grid" style="margin-top:1rem;">{$cards}</div>
@@ -1784,7 +2105,6 @@ HTML
             $examples .= '<span class="sotx-chip">' . e($example) . '</span>';
         }
 
-        $serviceLinks = $this->buildSystemServiceLinksHtml($systemCategory['services'], $pagesByBook);
         $vendorLinks = $this->buildSystemVendorChipsHtml($systemCategory['vendors'], $vendorPages);
 
         $leadContent = <<<HTML
@@ -1801,18 +2121,8 @@ HTML
 <section class="sotx-section">
     <div class="sotx-section-head">
         <div>
-            <h2>Sales Categories</h2>
-            <p class="sotx-note" style="margin:.35rem 0 0;">Choose one of these first. They carry the sales positioning, job context, and next-step guidance.</p>
-        </div>
-    </div>
-    <div class="sotx-actions" style="margin-top:.55rem;">{$serviceLinks}</div>
-</section>
-
-<section class="sotx-section">
-    <div class="sotx-section-head">
-        <div>
-            <h2>Source References</h2>
-            <p class="sotx-note" style="margin:.35rem 0 0;">These are supporting sources, not the primary route. Use them after a service page tells you which line matters.</p>
+            <h2>Product Sources</h2>
+            <p class="sotx-note" style="margin:.35rem 0 0;">Open the vendor overview in Products, then choose the product page that matches the job.</p>
         </div>
     </div>
     <div class="sotx-chip-list" style="margin-top:.55rem;">{$vendorLinks}</div>
@@ -1828,8 +2138,9 @@ HTML;
                     'title' => 'How to Use This Page',
                     'summary' => 'Start here when the customer need is clear but the product path is not.',
                     'points' => [
-                        'Choose a sales category first for positioning, job fit, and the correct Residential or Commercial workflow.',
-                        'Use source references only when you need specs, warranty, installation, training, collateral, pricing, or rep confirmation.',
+                        'Use the examples to recognize the customer outcome.',
+                        'Open a vendor below, then use the vendor overview or product page in Products.',
+                        'Use product pages when you need specs, warranty, installation, training, collateral, pricing, or rep confirmation.',
                         'Keep new details on the vendor or product page, then link here only when the route changes.',
                     ],
                 ],
@@ -1960,11 +2271,11 @@ HTML;
         ];
     }
 
-    protected function buildServiceCategoryHtml(string $serviceName, string $chapterName, string $categoryName, string $summary, array $productNames, array $productPages, ?Book $vendorsBook = null): string
+    protected function buildServiceCategoryHtml(string $serviceName, string $chapterName, string $categoryName, string $summary, array $productNames, array $productPages, ?Bookshelf $productsShelf = null): string
     {
         $productsHtml = $this->buildProductChipsHtml($productNames, $productPages);
-        $sourceLibraryLink = $vendorsBook
-            ? '<a href="' . e($vendorsBook->getUrl()) . '" class="sotx-pill">Open Source Library</a>'
+        $sourceLibraryLink = $productsShelf
+            ? '<a href="' . e($productsShelf->getUrl()) . '" class="sotx-pill">Open Products</a>'
             : '';
 
         $sourceSection = '';
@@ -2026,42 +2337,19 @@ HTML;
         $websiteUrl = $brandProfile['website'] ?? ($sourceBrandProfile['website'] ?? null);
         $quickLinks = $brandProfile['quick_links'] ?? ($brandProfile['links'] ?? ($sourceBrandProfile['links'] ?? null));
         $inventoryProducts = $this->parsedProductMarkdownBrands()[$brandName] ?? ($brandProfile['products'] ?? []);
-        $productSection = [];
+        $productPills = '';
         foreach ($inventoryProducts as $product) {
             $productPage = $productPages[$product['name']] ?? null;
-            $productSection[] = [
-                'title' => $product['name'],
-                'summary' => $product['summary'] ?? '',
-                'points' => $product['points'] ?? [],
-                'url' => $productPage?->getUrl() ?? ($product['url'] ?? null),
-            ];
-        }
-        if (!empty($productSection)) {
-            $renderSections = [[
-                'title' => 'Products',
-                'summary' => 'Direct links to the product lines we use from this vendor.',
-                'points' => array_map(function (array $product): array {
-                    $label = $product['title'];
-                    if (!empty($product['summary'])) {
-                        $label .= ' - ' . $product['summary'];
-                    }
+            $productUrl = $productPage?->getUrl() ?? ($product['url'] ?? null);
+            if (!empty($productUrl)) {
+                $productPills .= '<a href="' . e($productUrl) . '" class="sotx-pill">' . e($product['name']) . '</a>';
+                continue;
+            }
 
-                    if (!empty($product['url'])) {
-                        return [
-                            'html' => '<a href="' . e($product['url']) . '" target="_blank" rel="noreferrer">' . e($label) . '</a>',
-                        ];
-                    }
-
-                    return [
-                        'text' => $label,
-                    ];
-                }, $productSection),
-            ]];
-        } else {
-            $renderSections = [];
+            $productPills .= '<span class="sotx-chip">' . e($product['name']) . '</span>';
         }
 
-        $sourceLinks = '';
+        $sourceLinkPoints = [];
         if (!empty($quickLinks)) {
             foreach ($quickLinks as $link) {
                 $linkUrl = $link['url'] ?? null;
@@ -2069,201 +2357,193 @@ HTML;
                     continue;
                 }
 
-                $sourceLinks .= '<a href="' . e($linkUrl) . '" class="sotx-pill" target="_blank" rel="noreferrer">' . e($link['label'] ?? 'Website') . '</a>';
+                $sourceLinkPoints[] = [
+                    'html' => '<a href="' . e($linkUrl) . '" target="_blank" rel="noreferrer">' . e($link['label'] ?? 'Website') . '</a>',
+                ];
             }
         } else {
             if (!empty($websiteUrl)) {
-                $sourceLinks .= '<a href="' . e($websiteUrl) . '" class="sotx-pill" target="_blank" rel="noreferrer">Website</a>';
+                $sourceLinkPoints[] = [
+                    'html' => '<a href="' . e($websiteUrl) . '" target="_blank" rel="noreferrer">Website</a>',
+                ];
             }
 
             foreach (($brandProfile['sources'] ?? []) as $label => $url) {
-                $sourceLinks .= '<a href="' . e($url) . '" class="sotx-pill" target="_blank" rel="noreferrer">' . e($label) . '</a>';
+                $sourceLinkPoints[] = [
+                    'html' => '<a href="' . e($url) . '" target="_blank" rel="noreferrer">' . e($label) . '</a>',
+                ];
             }
         }
 
-        $leadContent = $this->renderScaffoldSections($renderSections);
-        $renderSections = [];
-
-        $warrantyLinks = $this->buildVendorWarrantyLinks($brandName, $brandProfile);
-        $warrantyNote = $this->buildVendorWarrantyNote($brandName);
-        $warrantyLinksHtml = $this->renderLinkPills($warrantyLinks, 'Warranty Information');
-        $warrantyLinksHtml .= '<p class="sotx-note" style="margin:.65rem 0 0;">' . e($this->buildWarrantyReminder($brandName)) . '</p>';
-
-        if ($warrantyNote !== '') {
-            $warrantyLinksHtml .= '<p class="sotx-note" style="margin:.65rem 0 0;">' . e($warrantyNote) . '</p>';
-        }
-
-        $leadContent .= <<<HTML
-<section class="sotx-section">
-    <div class="sotx-section-head">
-        <div>
-            <h2>Warranty Information</h2>
-            <p class="sotx-note" style="margin:.35rem 0 0;">Use these links for current warranty terms before quoting coverage.</p>
-        </div>
-    </div>
-    {$warrantyLinksHtml}
-</section>
-HTML;
-
-        $faqLinks = $this->buildVendorFaqLinks($brandName);
-        $faqLinksHtml = $this->renderLinkPills($faqLinks, 'FAQs');
-        if ($faqLinksHtml === '') {
-            $faqLinksHtml = '<p class="sotx-note" style="margin:.65rem 0 0;">No public FAQ page is listed for this vendor yet. Confirm product questions directly with the rep before quoting.</p>';
-        }
-
-        $leadContent .= <<<HTML
-<section class="sotx-section">
-    <div class="sotx-section-head">
-        <div>
-            <h2>FAQs</h2>
-            <p class="sotx-note" style="margin:.35rem 0 0;">Use these links for common product, care, ordering, and warranty questions.</p>
-        </div>
-    </div>
-    {$faqLinksHtml}
-</section>
-HTML;
-
-        if ($sourceLinks === '') {
-            $sourceLinks = '<span class="sotx-note">No public quick link is listed yet. Use the Source Inventory and rep contact path below until an official source is confirmed.</span>';
-        }
-
-        $leadContent .= <<<HTML
-<section class="sotx-section">
-    <div class="sotx-section-head">
-        <div>
-            <h2>Quick Links</h2>
-            <p class="sotx-note" style="margin:.35rem 0 0;">Fast access to the live public pages and dealer resources for this brand.</p>
-        </div>
-    </div>
-    <div class="sotx-actions" style="margin-top:.55rem;">{$sourceLinks}</div>
-</section>
-HTML;
-
-        $sourceInventoryHtml = $this->buildSourceInventoryHtml($brandName);
-        if ($sourceInventoryHtml !== '') {
-            $leadContent .= $sourceInventoryHtml;
-        }
-
-        return $this->buildScaffoldPageHtml($brandName, $pageName, $summary, $renderSections, $leadContent);
-    }
-
-    protected function buildVendorProductPageHtml(string $brandName, string $productName, string $summary, ?string $url, array $inventoryProducts = [], array $brandProfile = [], array $vendorProductPages = []): string
-    {
-        $relatedProducts = [];
-        foreach ($inventoryProducts as $product) {
-            if (($product['name'] ?? '') === $productName) {
-                continue;
-            }
-
-            $relatedProducts[] = $product;
-        }
-
-        $quickLinks = [];
-        if (!empty($url)) {
-            $quickLinks[] = [
-                'label' => 'Official Product Page',
-                'url' => $url,
+        if (empty($sourceLinkPoints)) {
+            $sourceLinkPoints[] = [
+                'text' => 'Needed: official vendor source links still need confirmation.',
             ];
         }
 
         $leadContent = '';
-        $links = '';
-        foreach ($quickLinks as $link) {
-            $links .= '<a href="' . e($link['url']) . '" class="sotx-pill" target="_blank" rel="noreferrer">' . e($link['label']) . '</a>';
+        if ($productPills !== '') {
+            $leadContent = <<<HTML
+<section class="sotx-section">
+    <div class="sotx-actions" style="margin-top:.55rem;">{$productPills}</div>
+</section>
+HTML;
         }
 
-        if ($links === '') {
-            $links = '<span class="sotx-note" style="display:block;">No public product URL is listed for this line yet. Use the vendor hub below for broader context.</span>';
+        $warrantyLinks = $this->buildVendorWarrantyLinks($brandName, $brandProfile);
+        $warrantyNote = $this->buildVendorWarrantyNote($brandName);
+        $warrantyPoints = $this->buildLinkListPoints($warrantyLinks);
+        if (empty($warrantyPoints)) {
+            $warrantyPoints[] = [
+                'text' => 'Needed: official warranty source has not been confirmed.',
+            ];
+        }
+        $warrantyPoints[] = [
+            'text' => $this->buildWarrantyReminder($brandName),
+        ];
+        if ($warrantyNote !== '') {
+            $warrantyPoints[] = ['text' => $warrantyNote];
         }
 
-        $leadContent = <<<HTML
+        $renderSections = [
+            [
+                'title' => 'Install Guides',
+                'summary' => 'Outcome Resources',
+                'points' => array_merge(
+                    $sourceLinkPoints,
+                    [['text' => 'Use product pages for product-specific install guides. If no official install guide is listed, request it from the vendor rep or dealer portal.']]
+                ),
+            ],
+            [
+                'title' => 'Product Specs',
+                'summary' => 'Outcome Resources',
+                'points' => array_merge(
+                    $sourceLinkPoints,
+                    [['text' => 'Use these vendor sources to confirm dimensions, materials, options, compatibility, and limitations before quoting.']]
+                ),
+            ],
+            [
+                'title' => 'Sales Collateral',
+                'summary' => 'Outcome Resources',
+                'points' => array_merge(
+                    $sourceLinkPoints,
+                    [['text' => 'Use current official brochures, sell sheets, catalogs, or product pages only.']]
+                ),
+            ],
+            [
+                'title' => 'Warranty',
+                'summary' => 'Outcome Resources',
+                'points' => $warrantyPoints,
+            ],
+        ];
+
+        return $this->buildScaffoldPageHtml($brandName, $pageName, $summary, $renderSections, $leadContent);
+    }
+
+    protected function buildCrossLinkPageHtml(
+        string $brandName,
+        string $currentCategory,
+        string $primaryCategory,
+        ?Page $primaryOverviewPage = null
+    ): string {
+        $overviewUrl = $primaryOverviewPage instanceof Page ? $primaryOverviewPage->getUrl() : null;
+        $overviewLink = $overviewUrl !== null
+            ? '<a href="' . e($overviewUrl) . '" class="sotx-pill">' . e('Open ' . $brandName . ' - Overview in ' . $primaryCategory) . '</a>'
+            : '<span class="sotx-note">Canonical page not yet linked — reseed to resolve.</span>';
+
+        $products = $this->parsedProductMarkdownBrands()[$brandName] ?? [];
+        $productChips = '';
+        foreach (array_slice($products, 0, 8) as $product) {
+            $productChips .= '<span class="sotx-chip">' . e($product['name']) . '</span>';
+        }
+
+        $productSection = '';
+        if ($productChips !== '') {
+            $productSection = <<<HTML
 <section class="sotx-section">
     <div class="sotx-section-head">
         <div>
-            <h2>Quick Links</h2>
-            <p class="sotx-note" style="margin:.35rem 0 0;">Use the official source when you need the live product page or brochure.</p>
+            <h2>Products in this line</h2>
+            <p class="sotx-note" style="margin:.35rem 0 0;">These chips are only a preview. Open the canonical overview for product pages and resource status.</p>
         </div>
     </div>
-    <div class="sotx-actions" style="margin-top:.55rem;">{$links}</div>
-    <div class="sotx-status-row">
-        <span class="sotx-status sotx-status-audited">Audited</span>
-        <span class="sotx-status sotx-status-rep">Rep Confirm Needed</span>
-    </div>
+    <div class="sotx-chip-list" style="margin-top:.65rem;">{$productChips}</div>
 </section>
 HTML;
-
-        $productSummary = trim($summary);
-        if ($productSummary === '') {
-            $productSummary = 'Product page for ' . $productName . '.';
         }
 
-        $fitBullets = $this->buildProductFitBullets($productName, $productSummary, $brandName);
-        $relatedHtml = '';
-        if (!empty($relatedProducts)) {
-            $relatedHtml .= '<div class="sotx-chip-list">';
-            foreach (array_slice($relatedProducts, 0, 8) as $relatedProduct) {
-                $relatedLabel = $relatedProduct['name'];
-                if (!empty($relatedProduct['summary'])) {
-                    $relatedLabel .= ' - ' . $relatedProduct['summary'];
-                }
+        $brandNameE       = e($brandName);
+        $currentCategoryE = e($currentCategory);
+        $primaryCategoryE = e($primaryCategory);
 
-                $relatedPage = $vendorProductPages[$relatedProduct['name']] ?? null;
-                if ($relatedPage instanceof Page) {
-                    $relatedHtml .= '<a class="sotx-chip" href="' . e($relatedPage->getUrl()) . '">' . e($relatedLabel) . '</a>';
-                } else {
-                    $relatedHtml .= '<span class="sotx-chip">' . e($relatedLabel) . '</span>';
-                }
-            }
-            $relatedHtml .= '</div>';
-        }
+        return <<<HTML
+<div class="sotx-home">
+    <section class="sotx-panel sotx-card sotx-section-card">
+        <p class="sotx-kicker">Routing page only</p>
+        <h1>{$brandNameE} - See {$primaryCategoryE}</h1>
+        <p class="sotx-lede">{$brandNameE} also applies to {$currentCategoryE}, but this page does not hold documentation. The canonical vendor overview and product pages live in the <strong>{$primaryCategoryE}</strong> category.</p>
+    </section>
+
+    <section class="sotx-section">
+        <div class="sotx-section-head">
+            <div>
+                <h2>Primary Category</h2>
+                <p class="sotx-note" style="margin:.35rem 0 0;">Use {$primaryCategoryE} for install guides, specs, collateral, warranty, and internal notes.</p>
+            </div>
+        </div>
+        <div class="sotx-actions" style="margin-top:.55rem;">{$overviewLink}</div>
+    </section>
+
+    {$productSection}
+</div>
+HTML;
+    }
+
+    protected function buildVendorProductPageHtml(string $brandName, string $productName, string $summary, ?string $url, array $inventoryProducts = [], array $brandProfile = [], array $vendorProductPages = [], string $categoryName = 'Products', ?Page $vendorOverviewPage = null): string
+    {
+        $officialProductPoint = !empty($url)
+            ? ['html' => '<a href="' . e($url) . '" target="_blank" rel="noreferrer">Official product source</a>']
+            : ['text' => 'Needed: official product source has not been confirmed.'];
+        $vendorOverviewLink = $vendorOverviewPage instanceof Page
+            ? '<a href="' . e($vendorOverviewPage->getUrl()) . '">' . e($brandName . ' - Overview') . '</a>'
+            : e($brandName . ' - Overview');
+        $productSpecsStatus = !empty($url)
+            ? $this->resourceStatusPoint('Partial', 'Official product source linked', 'Confirm dimensions, options, materials, compatibility, and limitations before quoting.', 'login')
+            : $this->resourceStatusPoint('Needed', 'Needed', 'Product specs must be sourced from the vendor portal, official PDF, or rep.', 'broken');
+        $salesCollateralStatus = !empty($url)
+            ? $this->resourceStatusPoint('Pending Review', 'Official product source linked', 'Add brochures, sell sheets, and talking points when available.', 'pending')
+            : $this->resourceStatusPoint('Needed', 'Needed', 'Sales collateral has not been sourced for this product.', 'broken');
+        $warrantyStatus = $this->resourceStatusPoint('Partial', 'Brand-wide warranty', 'Use ' . $brandName . ' - Overview before quoting coverage.', 'login');
 
         $sections = [
             [
-                'title' => 'Product Summary',
-                'summary' => 'Use this page as the quick snapshot for the product line.',
+                'title' => 'Install Guides',
+                'summary' => 'Outcome Resources',
                 'points' => [
-                    [
-                        'text' => $productSummary,
-                    ],
-                    [
-                        'text' => 'Vendor: ' . $brandName,
-                    ],
-                    [
-                        'text' => 'Official product page is linked above for line-specific details.',
-                    ],
+                    $this->resourceStatusPoint('Needed', 'Needed', 'Add official install documents or internal field notes for this product.', 'broken'),
                 ],
             ],
             [
-                'title' => 'Best Fit For',
-                'summary' => 'Use these notes when deciding whether the line fits the project.',
-                'points' => $fitBullets,
+                'title' => 'Product Specs',
+                'summary' => 'Outcome Resources',
+                'points' => [
+                    $officialProductPoint,
+                    $productSpecsStatus,
+                ],
             ],
             [
-                'title' => 'Related Lines',
-                'summary' => 'Other lines we carry from the same vendor.',
-                'points' => !empty($relatedProducts)
-                    ? array_map(function (array $relatedProduct) use ($vendorProductPages): array {
-                        $label = $relatedProduct['name'];
-                        if (!empty($relatedProduct['summary'])) {
-                            $label .= ' - ' . $relatedProduct['summary'];
-                        }
-
-                        $relatedPage = $vendorProductPages[$relatedProduct['name']] ?? null;
-                        if ($relatedPage instanceof Page) {
-                            return [
-                                'html' => '<a href="' . e($relatedPage->getUrl()) . '" target="_self" rel="internal">' . e($label) . '</a>',
-                            ];
-                        }
-
-                        return ['text' => $label];
-                    }, array_slice($relatedProducts, 0, 8))
-                    : [
-                        ['text' => 'No additional related product lines are listed for this vendor yet.'],
-                    ],
+                'title' => 'Sales Collateral',
+                'summary' => 'Outcome Resources',
+                'points' => [
+                    !empty($url) ? ['html' => '<a href="' . e($url) . '" target="_blank" rel="noreferrer">Official product page or brochure source</a>'] : ['text' => 'Needed: sales collateral has not been sourced.'],
+                    $salesCollateralStatus,
+                ],
             ],
         ];
 
         $warrantyPoints = $this->buildLinkListPoints($this->buildVendorWarrantyLinks($brandName, $brandProfile));
+        array_unshift($warrantyPoints, $warrantyStatus);
+        $warrantyPoints[] = ['html' => 'Open ' . $vendorOverviewLink . ' for brand-wide warranty links and source notes.'];
         $warrantyPoints[] = ['text' => $this->buildWarrantyReminder($brandName)];
         $warrantyNote = $this->buildVendorWarrantyNote($brandName);
         if ($warrantyNote !== '') {
@@ -2271,55 +2551,25 @@ HTML;
         }
 
         $sections[] = [
-            'title' => 'Warranty Information',
-            'summary' => 'Vendor warranty paths that apply before quoting coverage for this product line.',
+            'title' => 'Warranty',
+            'summary' => 'Outcome Resources',
             'points' => $warrantyPoints,
         ];
-
-        $faqPoints = $this->buildLinkListPoints($this->buildVendorFaqLinks($brandName));
-        if (empty($faqPoints)) {
-            $faqPoints[] = ['text' => 'No public FAQ page is listed for this vendor yet.'];
-        }
-
-        $sections[] = [
-            'title' => 'FAQs',
-            'summary' => 'Vendor FAQ paths for common product, care, ordering, and warranty questions.',
-            'points' => $faqPoints,
-        ];
-
-        $sourceBrandProfile = $this->sourceRegistry()['brands'][$brandName] ?? [];
-        $vendorSource = $brandProfile['website'] ?? ($sourceBrandProfile['website'] ?? null);
-        if (empty($vendorSource) && !empty($sourceBrandProfile['links'][0]['url'] ?? null)) {
-            $vendorSource = $sourceBrandProfile['links'][0]['url'];
-        }
-        $vendorHubHtml = '';
-        if (!empty($vendorSource)) {
-            $vendorHubHtml = '<a href="' . e($vendorSource) . '" class="sotx-pill" target="_blank" rel="noreferrer">Vendor Website</a>';
-        } else {
-            $vendorHubHtml = '<span class="sotx-note">No public vendor website is listed for this line yet. Use the vendor overview Source Inventory and rep contact path.</span>';
-        }
-
-        $leadContent .= <<<HTML
-<section class="sotx-section">
-    <div class="sotx-section-head">
-        <div>
-            <h2>Vendor Hub</h2>
-            <p class="sotx-note" style="margin:.35rem 0 0;">Reference the vendor hub when you need broader context for the product line.</p>
-        </div>
-    </div>
-    <div class="sotx-actions" style="margin-top:.55rem;">
-        {$vendorHubHtml}
-    </div>
-</section>
-HTML;
 
         return $this->buildScaffoldPageHtml(
             $brandName,
             $productName,
             $summary,
             $sections,
-            $leadContent
+            ''
         );
+    }
+
+    protected function resourceStatusPoint(string $status, string $scope, string $note, string $className): array
+    {
+        return [
+            'html' => '<span class="sotx-status sotx-status-' . e($className) . '">' . e($status) . '</span> <strong>' . e($scope) . '</strong>: ' . e($note),
+        ];
     }
 
     protected function buildProductFitBullets(string $productName, string $summary, string $brandName): array
@@ -2476,7 +2726,28 @@ HTML;
         $sections = $brands[$brandName] ?? [];
 
         if (empty($sections)) {
-            return '';
+            $sourceBrandProfile = $this->sourceRegistry()['brands'][$brandName] ?? [];
+            if (empty($sourceBrandProfile)) {
+                return '';
+            }
+
+            $sections = [
+                'Products' => array_map(
+                    fn (array $link): string => '[' . ($link['label'] ?? 'Product Source') . '](' . ($link['url'] ?? '#') . ')',
+                    $sourceBrandProfile['links'] ?? []
+                ),
+                'Dealer Portal' => ['Login Required — add portal URL and 1Password item name when confirmed.'],
+                'Product Specs' => ['Partial - use official product pages and vendor PDFs until product-specific specs are complete.'],
+                'Sales Collateral' => ['Pending Review — add brochures, sell sheets, comparison docs, and customer-facing PDFs when confirmed.'],
+                'Install Guide' => ['Needed — add official install guides, field notes, checklists, or job prep docs.'],
+                'Warranty Information' => array_map(
+                    fn (array $link): string => '[' . ($link['label'] ?? 'Warranty Information') . '](' . ($link['url'] ?? '#') . ')',
+                    $sourceBrandProfile['warranty_links'] ?? []
+                ),
+                'Rep Contact' => ['Needed — add assigned rep name, phone, and email when collected.'],
+            ];
+
+            $sections = array_filter($sections, fn (array $items): bool => !empty($items));
         }
 
         $sectionHtml = '';
@@ -2722,6 +2993,26 @@ HTML;
     protected function brandProfiles(): array
     {
         return [
+            'Vantis' => [
+                'website' => 'https://vantisshades.com/',
+                'quick_links' => [
+                    ['label' => 'Vantis Smart Film', 'url' => 'https://vantisshades.com/'],
+                    ['label' => 'Vantis Shade Systems', 'url' => 'https://vantisshades.com/shade-systems'],
+                    ['label' => 'Vantis Dealer Program', 'url' => 'https://vantisshades.com/dealer-program'],
+                ],
+                'products' => [
+                    [
+                        'name' => 'Smart Film',
+                        'summary' => 'Vantis smart film product line.',
+                        'url' => 'https://vantisshades.com/',
+                    ],
+                    [
+                        'name' => 'Shade Systems',
+                        'summary' => 'Vantis shade systems product line.',
+                        'url' => 'https://vantisshades.com/shade-systems',
+                    ],
+                ],
+            ],
             'Pella' => [
                 'website' => 'https://www.pella.com/',
                 'quick_links' => [
@@ -3055,7 +3346,7 @@ HTML;
         app(JointPermissionBuilder::class)->rebuildForAll();
     }
 
-    protected function buildHomepageHtml(array $books, array $chaptersByBook, array $pagesByBook): string
+    protected function buildHomepageHtml(array $books, array $chaptersByBook, array $pagesByBook, array $shelves = []): string
     {
         $systemCards = '';
         foreach ($this->systemCategories() as $systemCategory) {
@@ -3083,105 +3374,34 @@ HTML;
 HTML;
         }
 
-        $homepageSections = [
-            [
-                'title' => 'Residential',
-                'summary' => 'Residential window treatments, tinting, awnings and home services.',
-                'book' => $books['Residential'],
-                'chapters' => [
-                    ['name' => 'Tint & Film', 'pages' => ['Safety & Security Film', 'Solar Film', 'Privacy Film']],
-                    ['name' => 'Window Treatments', 'pages' => ['Window Shades', 'Window Shutters', 'Window Blinds', 'Safety / Storm Shutters']],
-                    ['name' => 'Outdoor Living', 'pages' => ['Shade Structures', 'Patio Awnings', 'Patio Screens']],
-                    ['name' => 'Glass & Windows', 'pages' => ['Window Glass', 'Frameless Showers', 'Window Cleaning']],
-                ],
-            ],
-            [
-                'title' => 'Commercial',
-                'summary' => 'Commercial storefront glazing, commercial shades, film and protective solutions.',
-                'book' => $books['Commercial'],
-                'chapters' => [
-                    ['name' => 'Solar Control & Safety', 'pages' => ['Sun Control Film', 'Safety & Security Film', 'Privacy Film', 'SmartTint']],
-                    ['name' => 'Patio Screens & Awnings', 'pages' => ['Patio Awnings', 'Patio Screens']],
-                    ['name' => 'Glass & Windows', 'pages' => ['Commercial Glazing']],
-                    ['name' => 'Window Treatments', 'pages' => ['Roller Shades']],
-                ],
-            ],
-        ];
-
-        $serviceCards = '';
-        foreach ($homepageSections as $service) {
-            $chips = '';
-            foreach ($service['chapters'] as $chapter) {
-                $items = '';
-                $chapterModel = $chaptersByBook[$service['title']][$chapter['name']] ?? null;
-                if (!$chapterModel) {
-                    continue;
-                }
-
-                foreach ($chapter['pages'] as $pageName) {
-                    $page = $pagesByBook[$service['title']][$chapter['name']][$pageName] ?? null;
-                    if (!$page) {
-                        continue;
-                    }
-
-                    $items .= '<span class="sotx-chip">' . e($pageName) . '</span>';
-                }
-
-                $chapterUrl = $chapterModel->getUrl();
-
-                $chips .= <<<HTML
-<a href="{$chapterUrl}" class="sotx-card sotx-service-card">
-    <div class="sotx-card-top">
-        <div>
-            <h4>{$chapter['name']}</h4>
-        </div>
-        <span class="sotx-flag">Open</span>
-    </div>
-    <div class="sotx-chip-list">{$items}</div>
-</a>
-HTML;
-            }
-
-        $serviceCards .= <<<HTML
-<div class="sotx-panel sotx-section-card">
-    <div class="sotx-card-top">
-        <div style="max-width:38rem;">
-            <p class="sotx-kicker">Service Area</p>
-            <h3>{$service['title']}</h3>
-            <p class="sotx-note">{$service['summary']}</p>
-        </div>
-        <a href="{$service['book']->getUrl()}" class="sotx-pill">Open {$service['title']}</a>
-    </div>
-    <div class="sotx-service-grid" style="margin-top:1rem;">{$chips}</div>
-</div>
-HTML;
-        }
-
-        $startHerePage = $pagesByBook['Start Here'][null]['Start Here'] ?? null;
+        $startHerePage = $pagesByBook['Start Here'][null]['Find Your Path'] ?? null;
         $startHereUrl = $startHerePage instanceof Page ? $startHerePage->getUrl() : $books['Start Here']->getUrl();
+        $vendorIndexUrl = $this->findPageUrl($pagesByBook, 'Start Here', null, 'Vendor Index') ?? $startHereUrl;
+        $systemCategoriesUrl = $this->findPageUrl($pagesByBook, 'Start Here', null, 'System Categories') ?? $startHereUrl;
 
         $quickLinks = '';
         foreach ([
-            ['url' => $startHereUrl, 'label' => 'Start Here'],
-            ['url' => $books['Residential']->getUrl(), 'label' => 'Residential'],
-            ['url' => $books['Commercial']->getUrl(), 'label' => 'Commercial'],
+            ['url' => $shelves['Products']->getUrl(), 'label' => 'Products'],
+            ['url' => $vendorIndexUrl, 'label' => 'Vendor Index'],
         ] as $link) {
             $quickLinks .= '<a href="' . e($link['url']) . '" class="sotx-pill">' . e($link['label']) . '</a>';
         }
 
-        $vendorsBook = $books['Vendors'];
-        $sourceTruthUrl = $this->findPageUrl($pagesByBook, 'Start Here', null, 'Source of Truth') ?? $startHereUrl;
+        $productsShelf = $shelves['Products'];
 
-        $supportCards = '';
+        $entryCards = '';
         foreach ([
-            ['url' => $startHereUrl, 'title' => 'Start Here', 'description' => 'Task buttons for sales-call lookup, updates, portals, and source checks.'],
-            ['url' => $sourceTruthUrl, 'title' => 'Source of Truth', 'description' => 'Use when a link, claim, warranty, or vendor source needs verification.'],
-            ['url' => $vendorsBook->getUrl(), 'title' => 'Source Library', 'description' => 'Brand-level pages for official specs, warranties, portals, contacts, and collateral.'],
-        ] as $supportCard) {
-            $supportCards .= <<<HTML
-<a href="{$supportCard['url']}" class="sotx-card sotx-mini-card">
-    <h4>{$supportCard['title']}</h4>
-    <p>{$supportCard['description']}</p>
+            ['url' => $productsShelf->getUrl(), 'title' => 'I know the product type', 'description' => 'Choose Products, then the SOT category book, vendor, and product page.', 'flag' => 'Product Type'],
+            ['url' => $vendorIndexUrl, 'title' => 'I know the vendor', 'description' => 'Open the Vendor Index to jump to the canonical vendor overview.', 'flag' => 'Vendor'],
+            ['url' => $systemCategoriesUrl, 'title' => 'I know the customer outcome', 'description' => 'Use System Categories when the customer describes the result they need.', 'flag' => 'Outcome'],
+        ] as $entryCard) {
+            $entryCards .= <<<HTML
+<a href="{$entryCard['url']}" class="sotx-card sotx-link-card sotx-task-card">
+    <div class="sotx-card-top">
+        <strong>{$entryCard['title']}</strong>
+        <span class="sotx-flag">{$entryCard['flag']}</span>
+    </div>
+    <span>{$entryCard['description']}</span>
 </a>
 HTML;
         }
@@ -3191,11 +3411,11 @@ HTML;
     <section class="sotx-panel sotx-hero">
         <div class="sotx-hero-copy">
             <div>
-                <p class="sotx-kicker">High Level</p>
+                <p class="sotx-kicker">Start Here</p>
                 <h1>Find the right answer fast.</h1>
                 <p class="sotx-lede" style="max-width:38rem;">
-                    Start with the customer need, choose Residential or Commercial context, then open source references only when the answer needs proof.
-                    Built so the team can stay in the sales workflow instead of falling straight into vendor pages.
+                    Start Here routes employees into the Products shelf, where each SOT product category is its own book.
+                    Choose the vendor chapter, then open the vendor overview or product resource page.
                 </p>
             </div>
             <div class="sotx-actions">
@@ -3212,12 +3432,12 @@ HTML;
                 <span>&amp; Insured</span>
             </div>
             <div class="sotx-metric">
-                <strong>5 Systems</strong>
-                <span>Customer needs</span>
+                <strong>Products</strong>
+                <span>Category first</span>
             </div>
             <div class="sotx-metric">
-                <strong>Sources</strong>
-                <span>When needed</span>
+                <strong>Status</strong>
+                <span>Gaps visible</span>
             </div>
         </div>
     </section>
@@ -3225,41 +3445,22 @@ HTML;
     <section class="sotx-section">
         <div class="sotx-section-head">
             <div>
-                <h2>System Categories</h2>
-                <p class="sotx-note" style="margin:.35rem 0 0;">Start here when the customer describes the outcome they want.</p>
+                <h2>Choose Your First Click</h2>
+                <p class="sotx-note" style="margin:.35rem 0 0;">Start from the thing you already know. Canonical product facts always resolve back into Products.</p>
+            </div>
+        </div>
+        <div class="sotx-resource-grid">{$entryCards}</div>
+    </section>
+
+    <section class="sotx-section">
+        <div class="sotx-section-head">
+            <div>
+                <h2>Customer Outcomes</h2>
+                <p class="sotx-note" style="margin:.35rem 0 0;">Secondary routing when the customer describes the outcome they want.</p>
             </div>
         </div>
         <div class="sotx-service-grid" style="margin-top:1rem;">
             {$systemCards}
-        </div>
-    </section>
-
-    <section class="sotx-section">
-        <div class="sotx-section-head">
-            <div>
-                <h2>Service Areas</h2>
-                <p class="sotx-note" style="margin:.35rem 0 0;">Choose Residential or Commercial when the project type is already clear.</p>
-            </div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:1rem;">
-            {$serviceCards}
-        </div>
-    </section>
-
-    <section class="sotx-section">
-        <div class="sotx-resource-grid">
-            {$supportCards}
-        </div>
-    </section>
-
-    <section class="sotx-section sotx-panel sotx-section-card">
-        <div class="sotx-card-top">
-            <div>
-                <p class="sotx-kicker">Workflow</p>
-                <h2>Need first. Vendor facts last.</h2>
-                <p class="sotx-note" style="margin:.35rem 0 0;">Use categories to route the conversation. Open source references only for specs, warranties, install guides, collateral, contacts, and official links.</p>
-            </div>
-            <a href="{$startHereUrl}" class="sotx-pill">Open Task Buttons</a>
         </div>
     </section>
 </div>
@@ -3273,6 +3474,7 @@ HTML;
                 'description' => 'Entry point for the sales team. Start here when you need to find the right resource quickly.',
                 'pages' => [
                     ['name' => 'Source of Truth', 'summary' => 'Master source map for brands, services, and reference documents.'],
+                    ['name' => 'Vendor Index', 'summary' => 'Vendor-first lookup that routes employees to the primary category.'],
                     ['name' => 'How to Use This Hub', 'summary' => 'Quick guide to navigating the knowledge base.'],
                     ['name' => 'Where to Find Product Info and Pricing', 'summary' => 'Explains where product details and pricing references live.'],
                     ['name' => 'How to Request Missing Documents', 'summary' => 'How to request a file or ask for a new reference page.'],
@@ -3350,7 +3552,7 @@ HTML;
                     ],
                 ],
             ],
-            'Vendors' => [
+            'Products' => [
                 'description' => 'Manufacturer and product-line reference pages for the products Shades of Texas carries.',
                 'chapters' => [
                     '3M' => ['description' => '3M product reference and sales support.'],

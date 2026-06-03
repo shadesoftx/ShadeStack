@@ -1,116 +1,90 @@
-Shades of Texas Sales Hub
-=========================
+ShadeStack Internal Product Documentation
+=========================================
 
-This repository powers the internal Shades of Texas sales hub. It is a BookStack-based knowledge base for sales teams who need fast access to product lines, vendor contacts, specs, warranties, training resources, and sales context without hunting through vendor websites or relying on word of mouth.
+ShadeStack is the internal Shades of Texas product documentation system for employees in sales, install, support, and warranty workflows.
 
-The structure is built around one path:
+The first click should match what the employee already knows:
 
-```text
-Customer Need -> System Category -> Residential/Commercial Category -> Product/Vendor Page -> Official Source
-```
+- `I know the product type` -> Products shelf -> SOT product category -> Vendor -> Product.
+- `I know the vendor` -> Start Here -> Vendor Index -> canonical vendor overview.
+- `I know the customer outcome` -> Start Here -> System Categories -> Products.
 
-The goal is not to duplicate every vendor website. The goal is to create a clean internal map that points the team to the right answer quickly and keeps official vendor information in one canonical place.
-
-Structure and routing are owned by this repository. Day-to-day vendor and product content is owned by BookStack so reps can update contacts, links, warranty notes, and source corrections where they already work.
-
-Design principles
------------------
-
-- Start with the way customers describe the need.
-- Keep the top-level navigation simple.
-- Use internal links before external links.
-- Keep vendor and product pages as the source of truth.
-- Avoid repeating specs, warranties, contacts, portal links, install guides, and collateral across pages.
-- Make gaps visible so sales, operations, and supplier owners can fill them over time.
-
-Core structure
---------------
-
-Only four books should appear in the main hub structure:
+The primary product path is:
 
 ```text
-High Level
-  Start Here
-  Residential
-  Commercial
-  Vendors
+Start Here -> SOT Product Category -> Vendor -> Product -> Outcome Resources
 ```
 
-### Start Here
+BookStack structure:
 
-Usage, governance, and top-level routing.
+```text
+Shelf: Workflow
+  Book: Start Here
+    Page: Find Your Path
+    Page: Vendor Index
 
-- Sales Hub Home
-- System Categories
-- Climate Control
-- Privacy Control
-- Patio Extension
-- Security and Safety
-- Home Automation & Control
-- Source of Truth
-- How to Use This Hub
-- Where to Find Product Info and Pricing
-- How to Request Missing Documents
+Shelf: Products
+  Book: one SOT product category per book
+    Chapter: vendor
+      Page: Vendor - Overview
+      Page: Vendor - Product
+```
 
-### Residential
+Outcome resources are headings inside product pages, not extra navigation containers. The section order is locked and must not be changed:
 
-Sales workflow pages for homeowner projects.
+1. Install Guides
+2. Product Specs
+3. Sales Collateral
+4. Warranty
 
-- Tint & Film
-- Window Treatments
-- Outdoor Living
-- Glass & Windows
+Core Rules
+----------
 
-### Commercial
+- Put each resource at the lowest level where it is still 100% true.
+- Brand-wide resources live on `Vendor - Overview`.
+- Product-specific resources live on `Vendor - Product`.
+- Product pages show per-resource status badges and link up to vendor overview pages for brand-wide install guides, warranty, training, portals, and contacts.
+- Workflow and System Category pages link into Products and hold no canonical product data.
+- Credentials live in 1Password only.
 
-Sales workflow pages for business, storefront, facility, and commercial property projects.
-
-- Solar Control & Safety
-- Patio Screens & Awnings
-- Glass & Windows
-- Window Treatments
-
-### Vendors
-
-The canonical vendor and product source of truth.
-
-- Vendor overview pages in BookStack own contacts, official links, dealer portal references, warranty paths, FAQs, source inventory, training links, and collateral.
-- Vendor product pages in BookStack own product summaries, best-fit notes, related lines, warranty/FAQ links, quick links, and vendor hub links.
-- Residential, Commercial, and System Category pages link into Vendors instead of repeating vendor detail.
-
-System categories
+Content Contracts
 -----------------
 
-The five system categories are the customer-need layer. They should route people toward the right service categories and vendor/product pages.
+Each page type has one job:
 
-| System category | Purpose | Examples |
+| Page Type | Job | Expected Information |
 |---|---|---|
-| Climate Control | Reduce heat, glare, and energy load. | Somfy, Vantis, Accent/3M, Sunbelt/Avery Dennison, Alta, Hunter Douglas, Austin Screens, Draper |
-| Privacy Control | Create privacy without sacrificing design. | Decorative Films, SolX, Frost, Accent/3M, Sunbelt/Avery Dennison, Alta, Hunter Douglas, Austin Screens, Draper |
-| Patio Extension | Extend indoor comfort into outdoor living. | Old Castle / US Aluminum, Andersen, JELD-WEN, ShadePro Shade Systems, Four Seasons Patio Systems, Eclipse |
-| Security and Safety | Protect people, property, and peace of mind. | Accent/3M, Sunbelt/Avery Dennison, Rollock Security Shutters |
-| Home Automation & Control | Automate comfort, light, shade, and privacy. | Somfy, Vantis |
+| Start Here | Route the employee to the right first click. | Product type path, vendor path, customer outcome path, protected SOP link. |
+| Vendor Index | Help employees find a vendor without knowing the primary category. | Vendor name, primary category, supported categories, canonical overview link. |
+| System Category | Translate customer outcomes into product/vendor routes. | Customer need, recognition cues, relevant vendors, links into Products. |
+| Product Category Book | Browse by SOT product type. | Category definition, primary vendors, cross-linked vendors, related categories, overlap notes. |
+| Vendor - Overview | Hold brand-wide outcome resources. | Product link strip, Install Guides, Product Specs, Sales Collateral, Warranty. |
+| Vendor - Product | Hold product-specific outcome resources. | Install Guides, Product Specs, Sales Collateral, Warranty. |
+| Vendor - See Primary Category | Route from secondary category to canonical vendor page. | Routing explanation, primary-category link, product chips only. |
+| Source of Truth | Govern sources and confidence. | Source rules, status definitions, credential rules, vendor source inventory, link-health expectations. |
+| SOP Link | Route to process documentation. | Protected SOP link and login-required note only. |
 
-Ownership rule
---------------
+Status Labels
+-------------
 
-Every page has one job:
+| Status | Meaning |
+|---|---|
+| Complete | All expected resources are present. |
+| Partial | Some resources are present, but at least one major outcome category is missing. |
+| Needed | Documentation is required but has not been sourced. |
+| Pending Review | Documentation exists but needs validation. |
+| Not Applicable | This outcome category does not apply. |
 
-- System Category pages route by customer outcome.
-- Residential and Commercial pages route by sales workflow.
-- Vendor pages hold vendor-level facts.
-- Product pages hold product-line facts.
-- Start Here pages explain how to use and maintain the hub.
-
-Dealer portals and credentials
-------------------------------
-
-Dealer portal URLs may be stored in BookStack. Actual usernames, passwords, recovery codes, and shared credentials should live in 1Password. BookStack should only reference the credential location, such as "1Password: Vendor Portals / Eclipse".
-
-Source files
+Source Files
 ------------
 
-- `docs/navigation.md` is the structural source of truth.
-- `docs/source.md` is seed/import data and an audit reference for vendor sources.
-- `docs/products.md` is seed/import data for vendor product pages.
-- `docs/link-audit.md` tracks external link status, login gates, pending sources, and replacement needs.
+- `docs/navigation.md` defines the BookStack shelf/book/chapter/page model.
+- `docs/products.md` defines product categories, templates, naming, and seed inventory.
+- `docs/source.md` defines sourcing rules, ownership, freshness, and credential handling.
+- `docs/source-collection.md` is the working collection tracker for official links, portal references, and rep-confirmed resources.
+- `docs/link-audit.md` tracks gaps, broken links, duplicate docs, outdated PDFs, login-gated URLs, and incomplete outcome categories.
+
+Reserved Future Areas
+---------------------
+
+SOPs and Partnerships should be separate shelves later. SOPs are role/process-built. Partnerships are outcome-built and should reuse the four resource buckets without being mixed into the core Products shelf.
