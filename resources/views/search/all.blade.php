@@ -84,7 +84,7 @@
 
                     <h6 class="text-muted">{{ trans_choice('entities.search_total_results_found', $totalResults, ['count' => $totalResults]) }}</h6>
                     <div class="book-contents">
-                        @include('entities.list', ['entities' => $entities, 'showPath' => true, 'showTags' => true])
+                        @include('entities.list', ['entities' => $entities, 'showPath' => true, 'showTags' => true, 'classes' => 'search-result-item'])
                     </div>
 
                     {{ $paginator->render() }}

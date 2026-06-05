@@ -180,6 +180,7 @@ class ShadesOfTexasStructureSeeder extends Seeder
                     || !str_contains($vendorOverviewPage->html ?? '', 'Outcome Resources')
                     || !str_contains($vendorOverviewPage->html ?? '', 'Product Specs')
                     || !str_contains($vendorOverviewPage->html ?? '', 'sotx-resource-row')
+                    || (count($inventoryProducts) > 12 && !str_contains($vendorOverviewPage->html ?? '', 'more in Guide Navigation'))
                     || $vendorOverviewMissingProducts
                     || str_contains($vendorOverviewPage->html ?? '', 'Vendor Reference')
                     || str_contains($vendorOverviewPage->html ?? '', 'Source Inventory')
@@ -450,6 +451,14 @@ html.dark-mode {
 
 .sotx-homepage .tri-layout-middle-contents,
 .sotx-homepage .content-wrap {
+    width: 100%;
+}
+
+.sotx-homepage .tri-layout-sides {
+    display: none;
+}
+
+.sotx-homepage .tri-layout-middle {
     width: 100%;
 }
 
@@ -793,6 +802,11 @@ html.dark-mode {
 .sotx-chip-link:hover {
     color: var(--sotx-orange);
     border-color: rgba(255, 90, 60, 0.35);
+}
+
+.sotx-chip-muted {
+    color: var(--sotx-muted);
+    font-weight: 800;
 }
 
 .sotx-section-card {
@@ -2483,7 +2497,8 @@ HTML;
         $quickLinks = $brandProfile['quick_links'] ?? ($brandProfile['links'] ?? ($sourceBrandProfile['links'] ?? null));
         $inventoryProducts = $this->parsedProductMarkdownBrands()[$brandName] ?? ($brandProfile['products'] ?? []);
         $productPills = '';
-        foreach ($inventoryProducts as $product) {
+        $visibleProducts = array_slice($inventoryProducts, 0, 12);
+        foreach ($visibleProducts as $product) {
             $productPage = $productPages[$product['name']] ?? null;
             $productUrl = $productPage?->getUrl() ?? ($product['url'] ?? null);
             if (!empty($productUrl)) {
@@ -2492,6 +2507,15 @@ HTML;
             }
 
             $productPills .= '<span class="sotx-chip">' . e($product['name']) . '</span>';
+        }
+        $hiddenProductCount = count($inventoryProducts) - count($visibleProducts);
+        if ($hiddenProductCount > 0) {
+            $productPills .= '<span class="sotx-chip sotx-chip-muted">+' . e((string) $hiddenProductCount) . ' more in Guide Navigation</span>';
+            $hiddenProductNames = implode(', ', array_map(
+                fn (array $product): string => $product['name'],
+                array_slice($inventoryProducts, 12)
+            ));
+            $productPills .= '<span class="screen-reader-only">Additional resources: ' . e($hiddenProductNames) . '</span>';
         }
 
         $sourceLinkPoints = [];

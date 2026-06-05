@@ -33,6 +33,24 @@
   }
 }
 
+.book-contents .entity-list-item.search-result-item {
+  padding-top: vars.$s;
+  padding-bottom: vars.$s;
+
+  .entity-list-item-name {
+    font-size: 1rem;
+    line-height: 1.25;
+  }
+
+  .entity-item-snippet {
+    margin-top: 2px;
+  }
+
+  .entity-item-snippet p {
+    opacity: 0.82;
+  }
+}
+
 .entity-list-item + .chapter-expansion {
   display: flex;
   padding: 0 vars.$m vars.$s vars.$m;

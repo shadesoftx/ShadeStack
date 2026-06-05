@@ -6655,6 +6655,21 @@ body.flexbox footer {
   padding-bottom: 0;
 }
 
+.book-contents .entity-list-item.search-result-item {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+.book-contents .entity-list-item.search-result-item .entity-list-item-name {
+  font-size: 1rem;
+  line-height: 1.25;
+}
+.book-contents .entity-list-item.search-result-item .entity-item-snippet {
+  margin-top: 2px;
+}
+.book-contents .entity-list-item.search-result-item .entity-item-snippet p {
+  opacity: 0.82;
+}
+
 .entity-list-item + .chapter-expansion {
   display: flex;
   padding: 0 16px 12px 16px;

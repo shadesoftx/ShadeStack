@@ -1,7 +1,15 @@
 @extends('layouts.tri')
 
+@php
+    $isHighLevelHomepage = str_contains($customHomepage->html ?? '', 'sotx-home');
+@endphp
+
+@if($isHighLevelHomepage)
+    @push('body-class', 'sotx-homepage ')
+@endif
+
 @section('body')
-    <div class="mt-m">
+    <div class="{{ $isHighLevelHomepage ? '' : 'mt-m' }}">
         <main class="content-wrap card">
             <div component="page-display"
                  option:page-display:page-id="{{ $customHomepage->id }}"
@@ -13,15 +21,19 @@
 @stop
 
 @section('left')
-    @include('home.parts.sidebar')
+    @if(!$isHighLevelHomepage)
+        @include('home.parts.sidebar')
+    @endif
 @stop
 
 @section('right')
-    <div class="actions mb-xl">
-        <h5>{{ trans('common.actions') }}</h5>
-        <div class="icon-list text-link">
-            @include('home.parts.expand-toggle', ['classes' => 'text-link', 'target' => '.entity-list.compact .entity-item-snippet', 'key' => 'home-details'])
-            @include('common.dark-mode-toggle', ['classes' => 'icon-list-item text-link'])
+    @if(!$isHighLevelHomepage)
+        <div class="actions mb-xl">
+            <h5>{{ trans('common.actions') }}</h5>
+            <div class="icon-list text-link">
+                @include('home.parts.expand-toggle', ['classes' => 'text-link', 'target' => '.entity-list.compact .entity-item-snippet', 'key' => 'home-details'])
+                @include('common.dark-mode-toggle', ['classes' => 'icon-list-item text-link'])
+            </div>
         </div>
-    </div>
+    @endif
 @stop
