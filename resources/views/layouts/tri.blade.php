@@ -29,15 +29,15 @@
 
         <div class="tri-layout-sides print-hidden">
             <div refs="tri-layout@sidebar-scroll-container" class="tri-layout-sides-content">
-                <div class="tri-layout-right print-hidden">
-                    <aside refs="tri-layout@sidebar-scroll-container" class="tri-layout-right-contents">
-                        @yield('right')
-                    </aside>
-                </div>
-
                 <div class="tri-layout-left print-hidden" id="sidebar">
                     <aside refs="tri-layout@sidebar-scroll-container" class="tri-layout-left-contents">
                         @yield('left')
+                    </aside>
+                </div>
+
+                <div class="tri-layout-right print-hidden">
+                    <aside refs="tri-layout@sidebar-scroll-container" class="tri-layout-right-contents">
+                        @yield('right')
                     </aside>
                 </div>
             </div>

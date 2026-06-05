@@ -5,7 +5,7 @@
    data-entity-id="{{$entity->id}}">
     <span role="presentation" class="icon text-{{$type}}">@icon($type)</span>
     <div class="content">
-            <h4 class="entity-list-item-name break-text">{{ $entity->preview_name ?? $entity->name }}</h4>
+            <h4 class="entity-list-item-name break-text text-limit-lines-2">{{ $entity->preview_name ?? $entity->name }}</h4>
             {{ $slot ?? '' }}
     </div>
 </a>

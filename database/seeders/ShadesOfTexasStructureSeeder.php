@@ -7,9 +7,11 @@ use BookStack\Entities\Models\Bookshelf;
 use BookStack\Entities\Models\Chapter;
 use BookStack\Entities\Models\Page;
 use BookStack\Entities\Repos\BaseRepo;
+use BookStack\Entities\Tools\TrashCan;
 use BookStack\Permissions\JointPermissionBuilder;
 use BookStack\Permissions\Models\RolePermission;
 use BookStack\Permissions\Permission;
+use BookStack\Search\SearchIndex;
 use BookStack\Users\Models\Role;
 use BookStack\Users\Models\User;
 use Illuminate\Database\Seeder;
@@ -144,7 +146,7 @@ class ShadesOfTexasStructureSeeder extends Seeder
                     $vendorProductPages[$productName] = $this->createPage(
                         $categoryBook,
                         $vendorChapter,
-                        $brandName . ' - ' . $productName,
+                        $this->vendorProductPageName($brandName, $productName),
                         $product['summary'] ?? '',
                         $byData,
                         $this->buildVendorProductPageHtml(
@@ -177,6 +179,7 @@ class ShadesOfTexasStructureSeeder extends Seeder
                 if (!empty($this->createdPageIds[$vendorOverviewPage->id])
                     || !str_contains($vendorOverviewPage->html ?? '', 'Outcome Resources')
                     || !str_contains($vendorOverviewPage->html ?? '', 'Product Specs')
+                    || !str_contains($vendorOverviewPage->html ?? '', 'sotx-resource-row')
                     || $vendorOverviewMissingProducts
                     || str_contains($vendorOverviewPage->html ?? '', 'Vendor Reference')
                     || str_contains($vendorOverviewPage->html ?? '', 'Source Inventory')
@@ -209,6 +212,7 @@ class ShadesOfTexasStructureSeeder extends Seeder
                     if (!empty($this->createdPageIds[$vendorProductPage->id])
                         || !str_contains($vendorProductPage->html ?? '', 'Outcome Resources')
                         || !str_contains($vendorProductPage->html ?? '', 'Product Specs')
+                        || !str_contains($vendorProductPage->html ?? '', 'sotx-resource-row')
                         || str_contains($vendorProductPage->html ?? '', 'Use Cases')
                         || str_contains($vendorProductPage->html ?? '', 'Internal Notes')
                         || str_contains($vendorProductPage->html ?? '', 'Source Status')
@@ -227,7 +231,7 @@ class ShadesOfTexasStructureSeeder extends Seeder
                     array_merge(
                         [$brandName . ' - Overview'],
                         array_map(
-                            fn (string $productName): string => $brandName . ' - ' . $productName,
+                            fn (string $productName): string => $this->vendorProductPageName($brandName, $productName),
                             array_keys($vendorProductPages)
                         )
                     )
@@ -375,11 +379,16 @@ class ShadesOfTexasStructureSeeder extends Seeder
 
         setting()->put('app-homepage-type', 'page');
         setting()->put('app-homepage', (string) $createdPages['Start Here'][null]['Find Your Path']->id);
+
+        app(SearchIndex::class)->indexAllEntities();
     }
 
     protected function applyBrandSettings(): void
     {
         $brandSettings = [
+            'app-name'              => 'HighLevel',
+            'app-logo'              => 'highlevel-logo.png',
+            'app-name-header'       => true,
             'app-color'             => '#171B2A',
             'app-color-light'       => 'rgba(255,90,60,0.14)',
             'link-color'            => '#FF5A3C',
@@ -416,6 +425,7 @@ class ShadesOfTexasStructureSeeder extends Seeder
     --sotx-bg: #f7f8fa;
     --sotx-surface: #ffffff;
     --sotx-surface-alt: #f1f4f7;
+    --sotx-surface-hover: #eef5f8;
     --sotx-border: rgba(23, 27, 42, 0.12);
     --sotx-border-strong: rgba(23, 27, 42, 0.22);
     --sotx-text: #171B2A;
@@ -429,6 +439,7 @@ html.dark-mode {
     --sotx-bg: #0f1320;
     --sotx-surface: #171B2A;
     --sotx-surface-alt: #1d2233;
+    --sotx-surface-hover: #20273a;
     --sotx-border: rgba(255, 255, 255, 0.10);
     --sotx-border-strong: rgba(255, 255, 255, 0.22);
     --sotx-text: #f5f7fb;
@@ -443,11 +454,11 @@ html.dark-mode {
 }
 
 .sotx-home {
-    max-width: 76rem;
+    max-width: 72rem;
     margin: 0 auto;
-    padding: clamp(1rem, 2vw, 1.5rem);
+    padding: clamp(.75rem, 1.6vw, 1.2rem);
     color: var(--sotx-text);
-    background: var(--sotx-bg);
+    background: transparent;
 }
 
 .sotx-home * {
@@ -460,19 +471,20 @@ html.dark-mode {
     background: var(--sotx-surface);
     border: 1px solid var(--sotx-border);
     border-radius: var(--sotx-radius);
+    box-shadow: none;
 }
 
 .sotx-hero {
     display: grid;
-    grid-template-columns: minmax(0, 1.45fr) minmax(17rem, .9fr);
-    gap: 1.1rem;
-    padding: clamp(1rem, 2vw, 1.45rem);
+    grid-template-columns: minmax(0, 1.6fr) minmax(14rem, .8fr);
+    gap: .85rem;
+    padding: clamp(.9rem, 1.7vw, 1.25rem);
     background: var(--sotx-surface);
-    border-left: 4px solid var(--sotx-blue);
+    border-left: 4px solid var(--sotx-orange);
 }
 
 .sotx-hero .sotx-lede {
-    font-size: 1rem;
+    font-size: .95rem;
 }
 
 .sotx-kicker {
@@ -494,8 +506,8 @@ html.dark-mode {
 }
 
 .sotx-hero h1 {
-    font-size: clamp(1.85rem, 3vw, 2.75rem);
-    line-height: 1.06;
+    font-size: clamp(1.65rem, 2.6vw, 2.35rem);
+    line-height: 1.08;
     letter-spacing: 0;
 }
 
@@ -505,7 +517,7 @@ html.dark-mode {
 .sotx-section p,
 .sotx-note {
     color: var(--sotx-muted);
-    line-height: 1.55;
+    line-height: 1.45;
 }
 
 .sotx-hero-copy {
@@ -525,8 +537,8 @@ html.dark-mode {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 2.5rem;
-    padding: .62rem .9rem;
+    min-height: 2.2rem;
+    padding: .48rem .75rem;
     border-radius: var(--sotx-radius);
     background: var(--sotx-navy);
     border: 1px solid var(--sotx-navy);
@@ -554,15 +566,15 @@ html.dark-mode {
 .sotx-stats {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: .6rem;
+    gap: .5rem;
 }
 
 .sotx-metric {
-    padding: .82rem .9rem;
+    padding: .62rem .72rem;
     border-radius: var(--sotx-radius);
     background: var(--sotx-soft);
     border: 1px solid rgba(10, 110, 159, .13);
-    min-height: 4.15rem;
+    min-height: 3.35rem;
 }
 
 .sotx-metric strong,
@@ -571,17 +583,17 @@ html.dark-mode {
 }
 
 .sotx-metric strong {
-    font-size: 1rem;
+    font-size: .92rem;
     color: var(--sotx-text);
 }
 
 .sotx-metric span {
     margin-top: .15rem;
-    font-size: .88rem;
+    font-size: .78rem;
 }
 
 .sotx-section {
-    margin-top: 1.1rem;
+    margin-top: .95rem;
 }
 
 .sotx-section-head {
@@ -590,19 +602,19 @@ html.dark-mode {
     justify-content: space-between;
     gap: 1rem;
     flex-wrap: wrap;
-    margin-bottom: .85rem;
+    margin-bottom: .65rem;
 }
 
 .sotx-section h2 {
-    font-size: clamp(1.18rem, 1.6vw, 1.45rem);
+    font-size: clamp(1.08rem, 1.3vw, 1.28rem);
     letter-spacing: 0;
 }
 
 .sotx-service-grid,
 .sotx-resource-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-    gap: .7rem;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: .55rem;
 }
 
 .sotx-card,
@@ -610,18 +622,19 @@ html.dark-mode {
 .sotx-service-card,
 .sotx-link-card {
     display: block;
-    padding: .9rem;
+    padding: .72rem .78rem;
     text-decoration: none;
     color: var(--sotx-text);
     min-width: 0;
-    transition: border-color .15s ease, background-color .15s ease, color .15s ease;
+    transition: border-color .15s ease, background-color .15s ease, color .15s ease, transform .15s ease;
 }
 
 .sotx-service-card:hover,
 .sotx-link-card:hover,
 .sotx-mini-card:hover {
-    background: linear-gradient(180deg, var(--sotx-surface) 0%, var(--sotx-surface-alt) 100%);
-    border-color: rgba(10, 110, 159, .35);
+    background: var(--sotx-surface-hover);
+    border-color: rgba(217, 77, 43, .35);
+    transform: translateY(-1px);
     text-decoration: none;
 }
 
@@ -635,12 +648,12 @@ html.dark-mode {
 .sotx-card h3,
 .sotx-card h4,
 .sotx-mini-card h4 {
-    line-height: 1.2;
+    line-height: 1.18;
 }
 
 .sotx-card p,
 .sotx-mini-card p {
-    margin-top: .45rem;
+    margin-top: .35rem;
 }
 
 .sotx-flag {
@@ -648,11 +661,11 @@ html.dark-mode {
     align-items: center;
     justify-content: center;
     flex: 0 0 auto;
-    padding: .22rem .42rem;
+    padding: .18rem .38rem;
     border-radius: 6px;
     background: rgba(23, 27, 42, .08);
     color: var(--sotx-text);
-    font-size: .66rem;
+    font-size: .62rem;
     font-weight: 900;
     letter-spacing: 0;
     text-transform: uppercase;
@@ -706,14 +719,14 @@ html.dark-mode {
 .sotx-task-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: .7rem;
+    gap: .55rem;
 }
 
 .sotx-task-card {
     position: relative;
-    min-height: 8.25rem;
+    min-height: 6.25rem;
     border-left: 3px solid var(--sotx-blue);
-    padding-right: 2rem;
+    padding-right: 1.85rem;
 }
 
 .sotx-task-card::after {
@@ -737,7 +750,7 @@ html.dark-mode {
 .sotx-task-card strong {
     display: block;
     color: var(--sotx-text);
-    font-size: 1rem;
+    font-size: .92rem;
     line-height: 1.25;
 }
 
@@ -745,26 +758,26 @@ html.dark-mode {
     display: block;
     margin-top: .4rem;
     color: var(--sotx-muted);
-    line-height: 1.38;
-    font-size: .9rem;
+    line-height: 1.32;
+    font-size: .8rem;
 }
 
 .sotx-chip-list {
     display: flex;
     flex-wrap: wrap;
-    gap: .35rem;
-    margin-top: .8rem;
+    gap: .3rem;
+    margin-top: .6rem;
 }
 
 .sotx-chip {
     display: inline-flex;
     align-items: center;
-    padding: .3rem .5rem;
+    padding: .24rem .44rem;
     border-radius: 6px;
     background: var(--sotx-surface-alt);
     border: 1px solid var(--sotx-border);
     color: var(--sotx-text);
-    font-size: .74rem;
+    font-size: .7rem;
     font-weight: 800;
     line-height: 1.2;
 }
@@ -783,11 +796,77 @@ html.dark-mode {
 }
 
 .sotx-section-card {
-    padding: 1rem;
+    padding: .85rem;
 }
 
 .sotx-template-block {
     min-height: 100%;
+}
+
+.sotx-resource-panel {
+    padding: .8rem;
+}
+
+.sotx-resource-panel + .sotx-resource-panel {
+    margin-top: .55rem;
+}
+
+.sotx-resource-list {
+    display: grid;
+    gap: .45rem;
+    margin-top: .65rem;
+}
+
+.sotx-resource-row {
+    display: grid;
+    grid-template-columns: minmax(8.5rem, .34fr) minmax(0, 1fr);
+    gap: .65rem;
+    align-items: start;
+    padding: .58rem 0;
+    border-top: 1px solid var(--sotx-border);
+}
+
+.sotx-resource-row:first-child {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.sotx-resource-row h4 {
+    margin: 0;
+    font-size: .88rem;
+    line-height: 1.2;
+}
+
+.sotx-resource-row p {
+    margin: .18rem 0 0;
+}
+
+.sotx-resource-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin-top: .5rem;
+}
+
+.sotx-resource-links a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.85rem;
+    padding: .32rem .48rem;
+    border: 1px solid var(--sotx-border);
+    border-radius: 6px;
+    background: var(--sotx-surface-alt);
+    color: var(--sotx-text);
+    font-size: .72rem;
+    font-weight: 800;
+    line-height: 1.2;
+    text-decoration: none;
+}
+
+.sotx-resource-links a:hover {
+    border-color: rgba(255, 90, 60, 0.35);
+    color: var(--sotx-orange);
+    text-decoration: none;
 }
 
 .sotx-template-list {
@@ -855,6 +934,11 @@ html.dark-mode {
         grid-template-columns: 1fr;
     }
 
+    .sotx-resource-row {
+        grid-template-columns: 1fr;
+        gap: .28rem;
+    }
+
     .sotx-task-card {
         min-height: auto;
     }
@@ -871,6 +955,57 @@ HTML;
     {
         // Preserve existing BookStack content. The seeder now upserts structure
         // and managed routing pages instead of deleting the hub on each run.
+        $this->removeLegacyGeneratedBooks();
+    }
+
+    protected function removeLegacyGeneratedBooks(): void
+    {
+        $legacyBookNames = ['Vendors', 'Residential', 'Commercial', 'Products'];
+        $trashCan = app(TrashCan::class);
+
+        Book::query()
+            ->whereIn('name', $legacyBookNames)
+            ->with(['pages:id,book_id,html,text', 'chapters:id,book_id,description'])
+            ->get()
+            ->each(function (Book $book) use ($trashCan): void {
+                if ($this->isLegacyGeneratedBook($book)) {
+                    $trashCan->destroyEntity($book);
+                }
+            });
+    }
+
+    protected function isLegacyGeneratedBook(Book $book): bool
+    {
+        $legacyDescriptions = [
+            'Vendor reference pages for manufacturers and distributors.',
+            'Residential sales resources organized by the categories the team actually sells every day.',
+            'Commercial sales resources organized by the categories the team actually sells every day.',
+            'Manufacturer and product-line reference pages for the products Shades of Texas carries.',
+        ];
+
+        if (in_array((string) $book->description, $legacyDescriptions, true)) {
+            return true;
+        }
+
+        foreach ($book->pages as $page) {
+            $content = (string) $page->html . ' ' . (string) $page->text;
+            if (
+                str_contains($content, 'sotx-home')
+                || str_contains($content, 'Generated by ShadesOfTexasStructureSeeder')
+                || str_contains($content, 'product reference and sales support')
+                || str_contains($content, 'Use the four sections below')
+            ) {
+                return true;
+            }
+        }
+
+        foreach ($book->chapters as $chapter) {
+            if (str_contains((string) $chapter->description, 'product reference and sales support')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected function createShelf(string $name, string $description, array $byData): Bookshelf
@@ -984,6 +1119,16 @@ HTML;
         $page->rebuildPermissions();
 
         return $page;
+    }
+
+    protected function vendorProductPageName(string $brandName, string $productName): string
+    {
+        $normalizedBrand = strtolower($brandName);
+        $normalizedProduct = strtolower($productName);
+
+        return str_starts_with($normalizedProduct, $normalizedBrand)
+            ? $productName
+            : $brandName . ' - ' . $productName;
     }
 
     protected function deleteStaleGeneratedVendorProductPages(Chapter $chapter, string $brandName, array $expectedPageNames): void
@@ -2391,6 +2536,7 @@ HTML;
         }
 
         $warrantyLinks = $this->buildVendorWarrantyLinks($brandName, $brandProfile);
+        $faqLinks = $this->buildVendorFaqLinks($brandName);
         $warrantyNote = $this->buildVendorWarrantyNote($brandName);
         $warrantyPoints = $this->buildLinkListPoints($warrantyLinks);
         if (empty($warrantyPoints)) {
@@ -2405,39 +2551,42 @@ HTML;
             $warrantyPoints[] = ['text' => $warrantyNote];
         }
 
-        $renderSections = [
+        $resourceRows = [
             [
                 'title' => 'Install Guides',
-                'summary' => 'Outcome Resources',
-                'points' => array_merge(
-                    $sourceLinkPoints,
-                    [['text' => 'Use product pages for product-specific install guides. If no official install guide is listed, request it from the vendor rep or dealer portal.']]
-                ),
+                'summary' => 'Use product pages for product-specific install guides. If one is missing, request it from the vendor rep or dealer portal.',
             ],
             [
                 'title' => 'Product Specs',
-                'summary' => 'Outcome Resources',
-                'points' => array_merge(
-                    $sourceLinkPoints,
-                    [['text' => 'Use these vendor sources to confirm dimensions, materials, options, compatibility, and limitations before quoting.']]
-                ),
+                'summary' => 'Confirm dimensions, materials, options, compatibility, and limitations before quoting.',
             ],
             [
                 'title' => 'Sales Collateral',
-                'summary' => 'Outcome Resources',
-                'points' => array_merge(
-                    $sourceLinkPoints,
-                    [['text' => 'Use current official brochures, sell sheets, catalogs, or product pages only.']]
-                ),
+                'summary' => 'Use current official brochures, sell sheets, catalogs, or product pages only.',
             ],
             [
                 'title' => 'Warranty',
-                'summary' => 'Outcome Resources',
-                'points' => $warrantyPoints,
+                'summary' => $this->buildWarrantyReminder($brandName),
             ],
         ];
 
-        return $this->buildScaffoldPageHtml($brandName, $pageName, $summary, $renderSections, $leadContent);
+        $resourceLinks = $this->renderResourceLinks(array_merge($this->pointsToLinks($sourceLinkPoints), $warrantyLinks, $faqLinks), 'Source');
+        $resourceHub = <<<HTML
+<section class="sotx-section sotx-panel sotx-resource-panel">
+    <div class="sotx-section-head">
+        <div>
+            <p class="sotx-kicker">Outcome Resources</p>
+            <h2>Resource Checklist</h2>
+            <p class="sotx-note" style="margin:.35rem 0 0;">Use one shared source list below instead of checking the same links in every section.</p>
+        </div>
+    </div>
+    {$this->renderResourceRows($resourceRows)}
+    {$resourceLinks}
+    <p class="sotx-note" style="margin-top:.55rem;">{$this->escapePlainOrEmpty($warrantyNote)}</p>
+</section>
+HTML;
+
+        return $this->buildScaffoldPageHtml($brandName, $pageName, $summary, [], $leadContent . $resourceHub);
     }
 
     protected function buildCrossLinkPageHtml(
@@ -2515,29 +2664,18 @@ HTML;
             : $this->resourceStatusPoint('Needed', 'Needed', 'Sales collateral has not been sourced for this product.', 'broken');
         $warrantyStatus = $this->resourceStatusPoint('Partial', 'Brand-wide warranty', 'Use ' . $brandName . ' - Overview before quoting coverage.', 'login');
 
-        $sections = [
+        $resourceRows = [
             [
                 'title' => 'Install Guides',
-                'summary' => 'Outcome Resources',
-                'points' => [
-                    $this->resourceStatusPoint('Needed', 'Needed', 'Add official install documents or internal field notes for this product.', 'broken'),
-                ],
+                'html' => $this->resourceStatusHtml('Needed', 'Needed', 'Add official install documents or internal field notes for this product.', 'broken'),
             ],
             [
                 'title' => 'Product Specs',
-                'summary' => 'Outcome Resources',
-                'points' => [
-                    $officialProductPoint,
-                    $productSpecsStatus,
-                ],
+                'html' => $productSpecsStatus['html'],
             ],
             [
                 'title' => 'Sales Collateral',
-                'summary' => 'Outcome Resources',
-                'points' => [
-                    !empty($url) ? ['html' => '<a href="' . e($url) . '" target="_blank" rel="noreferrer">Official product page or brochure source</a>'] : ['text' => 'Needed: sales collateral has not been sourced.'],
-                    $salesCollateralStatus,
-                ],
+                'html' => $salesCollateralStatus['html'],
             ],
         ];
 
@@ -2550,26 +2688,52 @@ HTML;
             $warrantyPoints[] = ['text' => $warrantyNote];
         }
 
-        $sections[] = [
+        $resourceRows[] = [
             'title' => 'Warranty',
-            'summary' => 'Outcome Resources',
-            'points' => $warrantyPoints,
+            'html' => $warrantyStatus['html'] . ' ' . e($this->buildWarrantyReminder($brandName)),
         ];
+
+        $resourceLinks = [];
+        if (!empty($url)) {
+            $resourceLinks[] = ['label' => 'Official product source', 'url' => $url];
+        }
+        $resourceLinks = array_merge($resourceLinks, $this->buildVendorWarrantyLinks($brandName, $brandProfile));
+
+        $resourceHub = <<<HTML
+<section class="sotx-section sotx-panel sotx-resource-panel">
+    <div class="sotx-section-head">
+        <div>
+            <p class="sotx-kicker">Outcome Resources</p>
+            <h2>Resource Checklist</h2>
+            <p class="sotx-note" style="margin:.35rem 0 0;">Status is shown once here; source links are grouped below.</p>
+        </div>
+    </div>
+    {$this->renderResourceRows($resourceRows)}
+    {$this->renderResourceLinks($resourceLinks, 'Source')}
+    <p class="sotx-note" style="margin-top:.55rem;">Open {$vendorOverviewLink} for brand-wide warranty links and source notes.</p>
+    <p class="sotx-note" style="margin-top:.35rem;">{$this->escapePlainOrEmpty($warrantyNote)}</p>
+</section>
+HTML;
 
         return $this->buildScaffoldPageHtml(
             $brandName,
             $productName,
             $summary,
-            $sections,
-            ''
+            [],
+            $resourceHub
         );
     }
 
     protected function resourceStatusPoint(string $status, string $scope, string $note, string $className): array
     {
         return [
-            'html' => '<span class="sotx-status sotx-status-' . e($className) . '">' . e($status) . '</span> <strong>' . e($scope) . '</strong>: ' . e($note),
+            'html' => $this->resourceStatusHtml($status, $scope, $note, $className),
         ];
+    }
+
+    protected function resourceStatusHtml(string $status, string $scope, string $note, string $className): string
+    {
+        return '<span class="sotx-status sotx-status-' . e($className) . '">' . e($status) . '</span> <strong>' . e($scope) . '</strong>: ' . e($note);
     }
 
     protected function buildProductFitBullets(string $productName, string $summary, string $brandName): array
@@ -2685,6 +2849,64 @@ HTML;
         }
 
         return $html === '' ? '' : '<div class="sotx-actions" style="margin-top:.55rem;">' . $html . '</div>';
+    }
+
+    protected function renderResourceRows(array $rows): string
+    {
+        $html = '';
+        foreach ($rows as $row) {
+            $title = e($row['title'] ?? '');
+            $body = array_key_exists('html', $row)
+                ? $row['html']
+                : '<p class="sotx-note">' . e($row['summary'] ?? '') . '</p>';
+
+            $html .= <<<HTML
+<div class="sotx-resource-row">
+    <h4>{$title}</h4>
+    <div>{$body}</div>
+</div>
+HTML;
+        }
+
+        return '<div class="sotx-resource-list">' . $html . '</div>';
+    }
+
+    protected function renderResourceLinks(array $links, string $fallbackLabel): string
+    {
+        $html = '';
+        foreach ($this->uniqueLinksByUrl($links) as $link) {
+            $linkUrl = $link['url'] ?? null;
+            if (empty($linkUrl)) {
+                continue;
+            }
+
+            $html .= '<a href="' . e($linkUrl) . '" target="_blank" rel="noreferrer">' . e($link['label'] ?? $fallbackLabel) . '</a>';
+        }
+
+        return $html === '' ? '' : '<div class="sotx-resource-links">' . $html . '</div>';
+    }
+
+    protected function pointsToLinks(array $points): array
+    {
+        $links = [];
+        foreach ($points as $point) {
+            $html = (string) ($point['html'] ?? '');
+            if (!preg_match('/href="([^"]+)".*?>(.*?)<\\/a>/i', $html, $matches)) {
+                continue;
+            }
+
+            $links[] = [
+                'label' => trim(strip_tags(html_entity_decode($matches[2]))),
+                'url'   => html_entity_decode($matches[1]),
+            ];
+        }
+
+        return $links;
+    }
+
+    protected function escapePlainOrEmpty(string $text): string
+    {
+        return $text === '' ? '' : e($text);
     }
 
     protected function buildLinkListPoints(array $links): array

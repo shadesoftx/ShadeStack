@@ -285,13 +285,15 @@ header .search-box.search-active:focus-within {
   background-color: #FFF;
   border-bottom: 1px solid #DDD;
   @include mixins.lightDark(border-bottom-color, #DDD, #333);
-  box-shadow: vars.$bs-card;
+  box-shadow: none;
 }
 .tri-layout-mobile-tab {
   text-align: center;
-  border-bottom: 3px solid #BBB;
+  border-bottom: 2px solid #BBB;
   cursor: pointer;
   margin: 0;
+  font-weight: 700;
+  font-size: .92rem;
   @include mixins.lightDark(background-color, #FFF, #222);
   @include mixins.lightDark(border-bottom-color, #BBB, #333);
   &:first-child {
@@ -300,6 +302,7 @@ header .search-box.search-active:focus-within {
   }
   &[aria-selected="true"] {
     border-bottom-color: currentColor !important;
+    @include mixins.lightDark(background-color, rgba(10, 110, 159, 0.07), rgba(255, 255, 255, 0.05));
   }
 }
 

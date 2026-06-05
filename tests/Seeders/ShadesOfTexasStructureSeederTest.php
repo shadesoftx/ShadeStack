@@ -2,9 +2,12 @@
 
 namespace Tests\Seeders;
 
+use BookStack\Entities\Models\Book;
 use BookStack\Entities\Models\Bookshelf;
 use BookStack\Entities\Models\Chapter;
 use BookStack\Entities\Models\Page;
+use BookStack\Search\SearchTerm;
+use BookStack\Users\Models\User;
 use Database\Seeders\ShadesOfTexasStructureSeeder;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -14,8 +17,48 @@ class ShadesOfTexasStructureSeederTest extends TestCase
     public function test_structure_seeder_creates_the_product_first_documentation_tree(): void
     {
         config(['app.url' => 'https://bookstack-sotx.test']);
+        $ownerId = User::query()->where('email', '=', 'admin@admin.com')->value('id')
+            ?? User::query()->value('id');
+        $legacyByData = [
+            'created_by' => $ownerId,
+            'updated_by' => $ownerId,
+            'owned_by'   => $ownerId,
+        ];
+        $legacyBook = Book::factory()->create(array_merge($legacyByData, [
+            'name'             => 'Vendors',
+            'description'      => 'Vendor reference pages for manufacturers and distributors.',
+            'description_html' => '<p>Vendor reference pages for manufacturers and distributors.</p>',
+        ]));
+        $legacyChapter = Chapter::factory()->create(array_merge($legacyByData, [
+            'book_id'          => $legacyBook->id,
+            'name'             => '3M',
+            'description'      => '3M product reference and sales support.',
+            'description_html' => '<p>3M product reference and sales support.</p>',
+        ]));
+        $legacyPage = Page::factory()->create(array_merge($legacyByData, [
+            'book_id'    => $legacyBook->id,
+            'chapter_id' => $legacyChapter->id,
+            'name'       => '3M Window Films for Architectural Design',
+            'html'       => '<div class="sotx-home"><p>Legacy generated 3M product reference and sales support.</p></div>',
+            'text'       => 'Legacy generated 3M product reference and sales support.',
+        ]));
+        $legacyPage->indexForSearch();
 
         app(ShadesOfTexasStructureSeeder::class)->run();
+
+        $this->assertSame('HighLevel', setting('app-name'));
+        $this->assertSame('highlevel-logo.png', setting('app-logo'));
+        $this->assertTrue(setting('app-name-header'));
+
+        $this->assertFalse(Book::withTrashed()->whereKey($legacyBook->id)->exists());
+        $this->assertFalse(Chapter::withTrashed()->whereKey($legacyChapter->id)->exists());
+        $this->assertFalse(Page::withTrashed()->whereKey($legacyPage->id)->exists());
+        $this->assertFalse(
+            SearchTerm::query()
+                ->where('entity_type', '=', 'page')
+                ->where('entity_id', '=', $legacyPage->id)
+                ->exists()
+        );
 
         $productsShelf = Bookshelf::query()->where('name', '=', 'Products')->firstOrFail();
         $workflowShelf = Bookshelf::query()->where('name', '=', 'Workflow')->firstOrFail();
@@ -184,6 +227,18 @@ class ShadesOfTexasStructureSeederTest extends TestCase
             ->where('book_id', '=', $tintFilmBook->id)
             ->where('name', '=', '3M - Prestige Series')
             ->firstOrFail();
+        $this->assertTrue(
+            SearchTerm::query()
+                ->where('entity_type', '=', 'page')
+                ->where('entity_id', '=', $productPage->id)
+                ->where('term', '=', 'prestige')
+                ->exists(),
+            'Seeded product pages must be indexed so global search returns results immediately after reseeding.'
+        );
+        $this->asAdmin()
+            ->get('/search?term=' . urlencode('Prestige'))
+            ->assertOk()
+            ->assertSeeText('3M - Prestige Series');
 
         foreach ([
             'Install Guides',

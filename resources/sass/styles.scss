@@ -215,6 +215,37 @@ $loadingSize: 10px;
   }
 }
 
+#home-default {
+  .grid.third {
+    grid-column-gap: vars.$m;
+  }
+  .card {
+    box-shadow: none;
+    border: 1px solid;
+    @include mixins.lightDark(border-color, rgba(23, 27, 42, 0.1), rgba(255, 255, 255, 0.08));
+  }
+  .card-title {
+    padding-bottom: vars.$s;
+  }
+  .activity-list-item,
+  .entity-list-item {
+    padding-inline: vars.$s;
+  }
+}
+
+.entity-chip {
+  border: 1px solid;
+  border-radius: 7px;
+  padding: vars.$xs vars.$s;
+  opacity: 1;
+  @include mixins.lightDark(background-color, rgba(10, 110, 159, 0.07), rgba(255, 255, 255, 0.05));
+  @include mixins.lightDark(border-color, rgba(10, 110, 159, 0.14), rgba(255, 255, 255, 0.09));
+  &:hover {
+    text-decoration: none;
+    @include mixins.lightDark(background-color, rgba(10, 110, 159, 0.12), rgba(255, 255, 255, 0.09));
+  }
+}
+
 .list-sort-container {
   display: inline-block;
   form {

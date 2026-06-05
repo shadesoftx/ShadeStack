@@ -8,7 +8,7 @@
         @icon('book')
     </div>
     <div class="content">
-        <h4 class="entity-list-item-name break-text">{{ $book->name }}</h4>
+        <h4 class="entity-list-item-name break-text text-limit-lines-2">{{ $book->name }}</h4>
         <div class="entity-item-snippet">
             <p class="text-muted break-text mb-s text-limit-lines-1">{{ $book->descriptionInfo()->getPlain() }}</p>
         </div>

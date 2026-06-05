@@ -3,9 +3,9 @@
 <a href="{{ $chapter->getUrl() }}" class="chapter entity-list-item @if($chapter->visible_pages->count() > 0) has-children @endif" data-entity-type="chapter" data-entity-id="{{$chapter->id}}">
     <span class="icon text-chapter">@icon('chapter')</span>
     <div class="content">
-        <h4 class="entity-list-item-name break-text">{{ $chapter->name }}</h4>
+        <h4 class="entity-list-item-name break-text text-limit-lines-2">{{ $chapter->name }}</h4>
         <div class="entity-item-snippet">
-            <p class="text-muted break-text">{{ $chapter->getExcerpt() }}</p>
+            <p class="text-muted break-text text-limit-lines-2">{{ $chapter->getExcerpt() }}</p>
         </div>
     </div>
 </a>

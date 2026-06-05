@@ -3,9 +3,12 @@
 
 
 .book-contents .entity-list-item {
+  margin-bottom: vars.$xxs;
+  border: 1px solid transparent;
+  border-radius: 8px;
   .icon {
-    width: 4px;
-    border-radius: 1px;
+    width: 5px;
+    border-radius: 8px;
     justify-self: stretch;
     align-self: stretch;
     height: auto;
@@ -19,6 +22,10 @@
   }
   p {
     margin-bottom: 0;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    overflow: hidden;
   }
   .inner-page {
     padding-top: 0;
@@ -28,7 +35,7 @@
 
 .entity-list-item + .chapter-expansion {
   display: flex;
-  padding: 0 vars.$m vars.$m vars.$m;
+  padding: 0 vars.$m vars.$s vars.$m;
   align-items: center;
   border: 0;
   width: 100%;
@@ -60,8 +67,8 @@
     flex: 1;
   }
   .chapter-contents-toggle {
-    border-radius: 0 4px 4px 0;
-    padding: vars.$xs (vars.$m + vars.$xxs);
+    border-radius: 8px;
+    padding: vars.$xs vars.$m;
     width: 100%;
     text-align: start;
   }
@@ -110,7 +117,7 @@
   }
   li {
     margin-bottom: 4px;
-    font-size: 0.95em;
+    font-size: 0.9em;
     position: relative;
   }
   .h1 {
@@ -168,29 +175,33 @@
   }
 
   .entity-list-item {
-    padding-top: 2px;
-    padding-bottom: 2px;
+    padding-top: vars.$xxs;
+    padding-bottom: vars.$xxs;
     background-clip: content-box;
-    border-radius: 0 3px 3px 0;
+    border-radius: 7px;
     padding-inline-end: 0;
+    gap: vars.$s;
     .content {
       width: 100%;
-      padding-top: vars.$xs;
-      padding-bottom: vars.$xs;
+      padding-top: vars.$xxs;
+      padding-bottom: vars.$xxs;
       max-width: calc(100% - 20px);
     }
   }
   .entity-list-item.selected {
-    @include mixins.lightDark(background-color, rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.06));
+    @include mixins.lightDark(background-color, rgba(10, 110, 159, 0.10), rgba(255, 90, 60, 0.13));
+    @include mixins.lightDark(color, var(--color-primary), #fff);
+    font-weight: 700;
   }
   .entity-list-item.no-hover {
     margin-top: -(vars.$xs);
     padding-inline-end: 0;
   }
   .entity-list-item-name {
-    font-size: 1em;
+    font-size: .92em;
     margin: 0;
     margin-inline-end: vars.$m;
+    line-height: 1.25;
   }
   .chapter-child-menu {
     font-size: .8rem;
@@ -202,7 +213,7 @@
     width: 100%;
     text-align: start;
     padding: vars.$xxs vars.$s (vars.$xxs * 2) vars.$s;
-    border-radius: 0 3px 3px 0;
+    border-radius: 7px;
     line-height: 1;
     margin-top: -(vars.$xxs);
     margin-bottom: -(vars.$xxs);
@@ -212,7 +223,7 @@
   }
   .entity-list-item .icon {
     z-index: 2;
-    width: 4px;
+    width: 5px;
     height: auto;
     align-self: stretch;
     flex-shrink: 0;
@@ -429,9 +440,9 @@ ul.pagination {
 }
 
 .icon-list hr {
-  margin: vars.$s vars.$m;
-  max-width: 140px;
-  opacity: 0.25;
+  margin: vars.$xs vars.$m;
+  max-width: none;
+  opacity: 0.2;
   height: 1.1px;
 }
 
@@ -440,10 +451,10 @@ ul.pagination {
 }
 
 .entity-list-item, .icon-list-item {
-  padding: vars.$s vars.$m;
+  padding: vars.$xs vars.$m;
   display: flex;
   align-items: center;
-  gap: vars.$m;
+  gap: vars.$s;
   background-color: transparent;
   border: 0;
   width: 100%;
@@ -453,7 +464,7 @@ ul.pagination {
     color: #666;
   }
   > span:first-child {
-    flex-basis: 1.88em;
+    flex-basis: 1.6em;
     flex: none;
   }
   > span:last-child {
@@ -462,23 +473,39 @@ ul.pagination {
   }
   > .content {
     min-width: 0;
+    flex: 1;
   }
   &:not(.no-hover) {
     cursor: pointer;
   }
   &:not(.no-hover):hover {
-    @include mixins.lightDark(background-color, rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.06));
+    @include mixins.lightDark(background-color, rgba(10, 110, 159, 0.07), rgba(255, 255, 255, 0.065));
     text-decoration: none;
-    border-radius: 4px;
+    border-radius: 8px;
   }
   &.outline-hover:hover {
     background-color: transparent;
   }
   &:focus {
-    @include mixins.lightDark(background-color, #eee, #222);
-    outline: 1px dotted #666;
+    @include mixins.lightDark(background-color, rgba(10, 110, 159, 0.08), #222);
+    outline: 2px solid var(--color-primary);
     outline-offset: -2px;
   }
+}
+
+.entity-list-item-name {
+  font-size: 1rem;
+  line-height: 1.22;
+  margin-bottom: vars.$xxs;
+}
+
+.entity-item-snippet p {
+  margin-top: 0;
+  line-height: 1.38;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .entity-list-item.disabled {
@@ -555,22 +582,22 @@ ul.pagination {
 }
 
 .card .entity-list-item:not(.no-hover, .book-contents .entity-list-item):hover {
-  @include mixins.lightDark(background-color, #F2F2F2, #2d2d2d);
-  border-radius: 0;
+  @include mixins.lightDark(background-color, rgba(10, 110, 159, 0.07), #2d2d2d);
+  border-radius: 8px;
 }
 .card .entity-list-item .entity-list-item:hover {
   background-color: #EEEEEE;
 }
 
 .entity-list-item-children {
-  padding: vars.$m vars.$l;
+  padding: vars.$s vars.$m vars.$m;
   > div {
     overflow: hidden;
     padding: 0 0 vars.$xs 0;
   }
   .entity-chip {
     text-overflow: ellipsis;
-    height: 2.5em;
+    height: 2.35em;
     overflow: hidden;
     text-align: start;
     display: block;
@@ -583,13 +610,13 @@ ul.pagination {
 
 .entity-list-item-image {
   align-self: stretch;
-  width: 140px;
+  width: 96px;
   flex: none;
   background-size: cover;
   background-position: 50% 50%;
-  border-radius: 3px;
+  border-radius: 8px;
   position: relative;
-  margin-inline-end: vars.$l;
+  margin-inline-end: vars.$s;
 
   &.entity-list-item-image-wide {
     width: 220px;
@@ -614,7 +641,7 @@ ul.pagination {
 }
 
 .entity-list.compact {
-  font-size: 0.6 * vars.$fs-m;
+  font-size: 0.75 * vars.$fs-m;
   h4, a {
     line-height: 1.2;
   }
@@ -622,8 +649,8 @@ ul.pagination {
     display: none;
   }
   .entity-list-item p {
-    font-size: vars.$fs-m * 0.8;
-    padding-top: vars.$xs;
+    font-size: vars.$fs-m * 0.72;
+    padding-top: 0;
   }
   .entity-list-item p:empty {
     padding-top: 0;
@@ -773,7 +800,7 @@ ul.pagination {
 .featured-image-container {
   position: relative;
   overflow: hidden;
-  min-height: 140px;
+  min-height: 118px;
   background-size: cover;
   background-position: 50% 50%;
   transition: opacity ease-in-out 240ms;
@@ -799,7 +826,7 @@ ul.pagination {
   }
 }
 .grid-card:hover .featured-image-container {
-  opacity: .5;
+  opacity: .72;
 }
 
 .action-link-list {
@@ -815,14 +842,15 @@ ul.pagination {
 .active-link-list {
   a {
     display: inline-block;
-    padding: vars.$s;
+    padding: vars.$xs vars.$s;
+    border-radius: 7px;
   }
   a:not(.active) {
     @include mixins.lightDark(color, #444, #888);
   }
   a:hover {
     @include mixins.lightDark(background-color, rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
-    border-radius: 4px;
+    border-radius: 7px;
     text-decoration: none;
   }
   &.in-sidebar {
@@ -831,7 +859,7 @@ ul.pagination {
       margin-bottom: vars.$xs;
     }
     a.active {
-      border-radius: 4px;
+      border-radius: 7px;
       @include mixins.lightDark(background-color, rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
     }
   }
@@ -840,9 +868,10 @@ ul.pagination {
 .entity-meta-item {
   display: flex;
   line-height: 1.2;
-  margin: 0.6em 0;
+  margin: 0.5em 0;
   align-content: start;
   gap: vars.$s;
+  font-size: .9em;
   a {
     line-height: 1.2;
   }

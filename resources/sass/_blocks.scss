@@ -8,7 +8,7 @@
 .card {
   @include mixins.lightDark(background-color, #FFF, #222);
   box-shadow: vars.$bs-card;
-  border-radius: 3px;
+  border-radius: 8px;
   break-inside: avoid;
   .body, p.empty-text {
     padding-block: vars.$m;
@@ -22,10 +22,10 @@
 .card-title {
   padding: vars.$m vars.$m vars.$xs;
   margin: 0;
-  font-size: vars.$fs-m;
+  font-size: vars.$fs-m * 0.92;
   color: #222;
   fill: #222;
-  font-weight: 400;
+  font-weight: 700;
 }
 .card-title a {
   line-height: 1;
@@ -38,7 +38,7 @@
   width: 100%;
   text-align: left;
   @include mixins.lightDark(border-color, #DDD, #555);
-  border-radius: 0 0 3px 3px;
+  border-radius: 0 0 8px 8px;
   font-size: 0.9em;
   margin-top: vars.$xs;
   &:hover {
@@ -110,26 +110,29 @@
   flex-direction: column;
   border: 1px solid #ddd;
   @include mixins.lightDark(border-color, #ddd, #000);
-  margin-bottom: vars.$l;
-  border-radius: 4px;
+  margin-bottom: vars.$m;
+  border-radius: 8px;
   overflow: hidden;
   min-width: 100px;
   color: vars.$text-dark;
-  transition: border-color ease-in-out 120ms, box-shadow ease-in-out 120ms;
+  transition: border-color ease-in-out 120ms, box-shadow ease-in-out 120ms, transform ease-in-out 120ms;
   &:hover {
     color: vars.$text-dark;
     text-decoration: none;
-    @include mixins.lightDark(box-shadow, vars.$bs-card, vars.$bs-card-dark);
+    transform: translateY(-1px);
+    @include mixins.lightDark(border-color, rgba(0, 0, 0, 0.24), rgba(255, 255, 255, 0.18));
+    @include mixins.lightDark(box-shadow, 0 4px 14px rgba(0, 0, 0, 0.10), vars.$bs-card-dark);
   }
   h2 {
     width: 100%;
-    font-size: 1.5em;
-    margin: 0 0 10px;
+    font-size: 1.15em;
+    margin: 0 0 vars.$xs;
+    line-height: 1.2;
   }
   p {
-    font-size: .7rem;
+    font-size: .8rem;
     margin: 0;
-    line-height: 1.6em;
+    line-height: 1.45;
   }
   .grid-card-content {
     flex: 1;
@@ -137,7 +140,7 @@
     border-bottom-width: 2px;
   }
   .grid-card-content, .grid-card-footer {
-    padding: vars.$l;
+    padding: vars.$m;
   }
   .grid-card-content + .grid-card-footer {
     padding-top: 0;
@@ -152,7 +155,7 @@
 }
 
 .content-wrap.card {
-  padding: vars.$m vars.$xxl;
+  padding: vars.$l vars.$xxl;
   margin-inline-start: auto;
   margin-inline-end: auto;
   margin-bottom: vars.$l;
@@ -166,9 +169,19 @@
     width: 100%;
   }
 }
+.tri-layout .content-wrap.card {
+  @include mixins.lightDark(background-color, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.03));
+  @include mixins.lightDark(border-color, rgba(23, 27, 42, 0.08), rgba(255, 255, 255, 0.07));
+  border: 1px solid;
+  box-shadow: none;
+}
+.tri-layout .content-wrap.card h1:first-child {
+  margin-top: 0;
+  margin-bottom: vars.$m;
+}
 @include mixins.smaller-than(vars.$bp-xxl) {
   .content-wrap.card {
-    padding: vars.$m vars.$xl;
+    padding: vars.$l vars.$xl;
   }
 }
 @include mixins.smaller-than(vars.$bp-m) {

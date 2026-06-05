@@ -20819,7 +20819,7 @@ var table_insert_row_above_default = '<svg xmlns="http://www.w3.org/2000/svg" vi
 var table_insert_row_below_default = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 16v-5H5v5c0 1.235-2 1.234-2 0V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v11c0 1.229-2 1.236-2 0zm-6-7h6V5h-6zM5 9h6V5H5Zm6 11.076v-2H9c-1.333 0-1.333-2 0-2h2v-2c0-1.335 2-1.335 2 0v2h2c1.333 0 1.333 2 0 2h-2v1.9c0 1.572-2 1.113-2 .1z"/></svg>';
 
 // resources/icons/editor/color-display.svg
-var color_display_default = '<svg version="1.1" viewBox="0 -960 960 960" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">\r\n <defs>\r\n  <pattern id="pattern2" x="0.40000001" patternTransform="scale(200)" preserveAspectRatio="xMidYMid" xlink:href="#Checkerboard"/>\r\n  <pattern id="Checkerboard" width="2" height="2" fill="#b6b6b6" patternTransform="translate(0) scale(10)" patternUnits="userSpaceOnUse" preserveAspectRatio="xMidYMid">\r\n   <rect width="1" height="1"/>\r\n   <rect x="1" y="1" width="1" height="1"/>\r\n  </pattern>\r\n </defs>\r\n <rect class="editor-icon-color-display" x="103.53" y="-856.47" width="752.94" height="752.94" rx="47.059" ry="47.059" fill="url(#pattern2)" stroke="#666" stroke-linecap="square" stroke-linejoin="round" stroke-width="47.059"/>\r\n</svg>\r\n';
+var color_display_default = '<svg version="1.1" viewBox="0 -960 960 960" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">\n <defs>\n  <pattern id="pattern2" x="0.40000001" patternTransform="scale(200)" preserveAspectRatio="xMidYMid" xlink:href="#Checkerboard"/>\n  <pattern id="Checkerboard" width="2" height="2" fill="#b6b6b6" patternTransform="translate(0) scale(10)" patternUnits="userSpaceOnUse" preserveAspectRatio="xMidYMid">\n   <rect width="1" height="1"/>\n   <rect x="1" y="1" width="1" height="1"/>\n  </pattern>\n </defs>\n <rect class="editor-icon-color-display" x="103.53" y="-856.47" width="752.94" height="752.94" rx="47.059" ry="47.059" fill="url(#pattern2)" stroke="#666" stroke-linecap="square" stroke-linejoin="round" stroke-width="47.059"/>\n</svg>\n';
 
 // resources/js/wysiwyg/ui/framework/blocks/color-field.ts
 var EditorColorField = class extends EditorContainerUiElement {
@@ -21928,7 +21928,7 @@ var italic_default = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 96
 var underlined_default = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="M200-120v-80h560v80H200Zm280-160q-101 0-157-63t-56-167v-330h103v336q0 56 28 91t82 35q54 0 82-35t28-91v-336h103v330q0 104-56 167t-157 63Z"/></svg>';
 
 // resources/icons/editor/text-color.svg
-var text_color_default = '<svg version="1.1" viewBox="0 -960 960 960" xmlns="http://www.w3.org/2000/svg"><path class="editor-icon-color-bar" d="m80-3e-6v-160h800v160z"/><path d="m220-280 210-560h100l210 560h-96l-50-144h-226l-52 144zm176-224h168l-82-232h-4z"/></svg>\r\n';
+var text_color_default = '<svg version="1.1" viewBox="0 -960 960 960" xmlns="http://www.w3.org/2000/svg"><path class="editor-icon-color-bar" d="m80-3e-6v-160h800v160z"/><path d="m220-280 210-560h100l210 560h-96l-50-144h-226l-52 144zm176-224h168l-82-232h-4z"/></svg>\n';
 
 // resources/icons/editor/highlighter.svg
 var highlighter_default = '<svg version="1.1" viewBox="0 -960 960 960" xmlns="http://www.w3.org/2000/svg"><path class="editor-icon-color-bar" d="m80-2e-6v-160h800v160z"/><path d="m584-480-104-104-160 160 103 104zm-47-160 103 103 160-159-104-104zm-84-29 216 216-189 190c-16 16-34.833 24-56.5 24s-40.5-8-56.5-24l-27 23h-200l126-125c-16-16-24.333-35.167-25-57.5s7-41.5 23-57.5zm0 0 187-187c16-16 34.833-24 56.5-24s40.5 8 56.5 24l104 103c16 16 24 34.833 24 56.5s-8 40.5-24 56.5l-188 187z"/></svg>';
@@ -22188,7 +22188,7 @@ var diagram_default = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 9
 var details_default = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-480H200v480Zm80-280v-80h400v80H280Zm0 160v-80h240v80H280Z"/></svg>';
 
 // resources/icons/editor/details-toggle.svg
-var details_toggle_default = '<svg viewbox="0 0 24 24"><path d="M8.12 19.3c.39.39 1.02.39 1.41 0L12 16.83l2.47 2.47c.39.39 1.02.39 1.41 0 .39-.39.39-1.02 0-1.41l-3.17-3.17c-.39-.39-1.02-.39-1.41 0l-3.17 3.17c-.4.38-.4 1.02-.01 1.41zm7.76-14.6c-.39-.39-1.02-.39-1.41 0L12 7.17 9.53 4.7c-.39-.39-1.02-.39-1.41 0-.39.39-.39 1.03 0 1.42l3.17 3.17c.39.39 1.02.39 1.41 0l3.17-3.17c.4-.39.4-1.03.01-1.42z"/></svg>\r\n';
+var details_toggle_default = '<svg viewbox="0 0 24 24"><path d="M8.12 19.3c.39.39 1.02.39 1.41 0L12 16.83l2.47 2.47c.39.39 1.02.39 1.41 0 .39-.39.39-1.02 0-1.41l-3.17-3.17c-.39-.39-1.02-.39-1.41 0l-3.17 3.17c-.4.38-.4 1.02-.01 1.41zm7.76-14.6c-.39-.39-1.02-.39-1.41 0L12 7.17 9.53 4.7c-.39-.39-1.02-.39-1.41 0-.39.39-.39 1.03 0 1.42l3.17 3.17c.39.39 1.02.39 1.41 0l3.17-3.17c.4-.39.4-1.03.01-1.42z"/></svg>\n';
 
 // resources/icons/tag.svg
 var tag_default = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m21.41 11.41-8.83-8.83c-.37-.37-.88-.58-1.41-.58H4c-1.1 0-2 .9-2 2v7.17c0 .53.21 1.04.59 1.41l8.83 8.83c.78.78 2.05.78 2.83 0l7.17-7.17c.78-.78.78-2.04-.01-2.83M6.5 8C5.67 8 5 7.33 5 6.5S5.67 5 6.5 5 8 5.67 8 6.5 7.33 8 6.5 8"/></svg>';
@@ -22402,7 +22402,7 @@ var detailsUnwrap = {
 };
 
 // resources/icons/caret-down-large.svg
-var caret_down_large_default = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="m2 6.9159 10 10.168 10-10.168z" stroke-width="2.0168"/></svg>\r\n';
+var caret_down_large_default = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="m2 6.9159 10 10.168 10-10.168z" stroke-width="2.0168"/></svg>\n';
 
 // resources/js/wysiwyg/ui/framework/blocks/button-with-menu.ts
 var EditorButtonWithMenu = class extends EditorContainerUiElement {

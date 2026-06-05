@@ -3,9 +3,9 @@
         @icon('bookshelf')
     </div>
     <div class="content py-xs">
-        <h4 class="entity-list-item-name break-text">{{ $shelf->name }}</h4>
+        <h4 class="entity-list-item-name break-text text-limit-lines-2">{{ $shelf->name }}</h4>
         <div class="entity-item-snippet">
-            <p class="text-muted break-text mb-none">{{ $shelf->getExcerpt() }}</p>
+            <p class="text-muted break-text mb-none text-limit-lines-2">{{ $shelf->getExcerpt() }}</p>
         </div>
     </div>
 </a>
